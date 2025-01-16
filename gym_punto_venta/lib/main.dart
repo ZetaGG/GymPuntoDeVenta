@@ -19,7 +19,7 @@ class MainApp extends StatelessWidget {
     ]);
     return const GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      home: PrincipalScreen(),
+      home: HomeScreen(),
     );
   }
 }
