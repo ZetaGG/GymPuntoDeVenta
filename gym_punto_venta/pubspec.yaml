@@ -14,6 +14,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   get: ^4.6.5
+  shared_preferences: ^2.0.6
   flutter_lints: ^4.0.0
 
 flutter:
