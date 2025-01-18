@@ -6,9 +6,11 @@ class ClientTable extends StatelessWidget {
   final Function(Client) onEdit;
   final Function(Client) onRenew;
   final Function(Client) onDelete;
+  bool mode;
 
-  const ClientTable({
+   ClientTable({
     Key? key,
+    required this.mode,
     required this.clients,
     required this.onEdit,
     required this.onRenew,
@@ -21,13 +23,13 @@ class ClientTable extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         columns: const [
-          DataColumn(label: Text('Nombre')),
-          DataColumn(label: Text('Email')),
-          DataColumn(label: Text('Teléfono')),
-          DataColumn(label: Text('Fecha Inicio')),
-          DataColumn(label: Text('Fecha Vencimiento')),
-          DataColumn(label: Text('Estado')),
-          DataColumn(label: Text('Acciones')),
+          DataColumn(label: Text('Nombre', style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Email' , style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Teléfono' , style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Fecha Inicio' , style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Fecha Vencimiento' , style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Estado' , style: TextStyle(color: Colors.grey),)),
+          DataColumn(label: Text('Acciones' , style: TextStyle(color: Colors.grey),)),
         ],
         rows: clients.map((client) {
           return DataRow(

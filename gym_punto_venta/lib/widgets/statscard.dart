@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:gym_punto_venta/Screens/PrincipalScreen.dart';
+
 
 class StatCard extends StatelessWidget {
   final String title;
   final String value;
+  bool mode;
 
-  const StatCard({Key? key, required this.title, required this.value}) : super(key: key);
+
+
+   StatCard({Key? key, required this.mode,required this.title, required this.value}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: mode ? Colors.grey[800]:Colors.white ,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -16,7 +22,7 @@ class StatCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.grey,
                 fontSize: 14,
               ),

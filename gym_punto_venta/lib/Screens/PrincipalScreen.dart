@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-
 import 'package:gym_punto_venta/models/clients.dart';
 import 'package:gym_punto_venta/widgets/client_table.dart';
 import 'package:gym_punto_venta/widgets/statscard.dart';
@@ -15,10 +14,10 @@ class GymManagementScreen extends StatefulWidget {
   const GymManagementScreen({super.key});
 
   @override
-  State<GymManagementScreen> createState() => _GymManagementScreenState();
+  State<GymManagementScreen> createState() => GymManagementScreenState();
 }
 
-class _GymManagementScreenState extends State<GymManagementScreen> {
+class GymManagementScreenState extends State<GymManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Client> _clients = [];
   List<Client> _filteredClients = [];
@@ -29,6 +28,11 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
   double _weeklyFee = 10.0;
   double _visitFee = 5.0;
   bool _showBalanceView = false;
+  bool _darkMode = false;
+
+  bool darkModeSwitch() {
+    return _darkMode;
+  }
 
   @override
   void initState() {
@@ -122,6 +126,7 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
       context: context,
       builder: (BuildContext context) {
         return AddClientDialog(
+          mode: _darkMode,
           onSave: (Client newClient) {
             setState(() {
               _clients.add(newClient);
@@ -183,6 +188,7 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
       context: context,
       builder: (BuildContext context) {
         return EditPricesDialog(
+          mode: _darkMode,
           monthlyFee: _monthlyFee,
           weeklyFee: _weeklyFee,
           visitFee: _visitFee,
@@ -202,6 +208,7 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _darkMode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -218,20 +225,32 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
                     color: Colors.blue,
                   ),
                 ),
+                Switch(value: _darkMode, activeColor: Colors.blue ,onChanged:  (value) {
+                setState(() {
+                  _darkMode = value;
+                });
+              },),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[800] : Colors.white),
                   onPressed: () => _addNewClient(isVisit: true),
-                  child: const Text('Visita'),
+                  child: const Text('Visita' , style: TextStyle(color: Colors.blue)),
                 ),
+                
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[800] : Colors.white),
                   onPressed: () => _addNewClient(isVisit: false),
-                  child: const Text('Nuevo Cliente'),
+                  child: const Text('Nuevo Cliente' , style: TextStyle(color: Colors.blue)),
                 ),
               ],
             ),
             const SizedBox(height: 20),
             SwitchListTile(
-              title: const Text('Mostrar Balance'),
+                title: Text(
+                'Mostrar Balance',
+                style: TextStyle(color: _darkMode ? Colors.white : Colors.grey),
+                ),
               value: _showBalanceView,
+              activeColor: Colors.blue,
               onChanged: (value) {
                 setState(() {
                   _showBalanceView = value;
@@ -242,17 +261,20 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: StatCard(title: 'Balance Anual', value: _balance.toStringAsFixed(2)),
+                    child: StatCard(mode: _darkMode,title: 'Balance Anual', value: _balance.toStringAsFixed(2)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: StatCard(title: 'Balance Mensual', value: (_balance / 12).toStringAsFixed(2)),
+                    child: StatCard(mode: _darkMode, title: 'Balance Mensual', value: (_balance / 12).toStringAsFixed(2)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[800] : Colors.white),
                       onPressed: _editPrices,
-                      child: const Text('Editar Precios'),
+                      child: const Text('Editar Precios',
+                        style: TextStyle(color: Colors.blue),
+                      ),
                     ),
                   ),
                 ],
@@ -261,11 +283,12 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: StatCard(title: 'Total Clientes', value: _clients.length.toString()),
+                    child: StatCard(mode: _darkMode,title: 'Total Clientes', value: _clients.length.toString()),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: StatCard(
+                      mode: _darkMode,
                       title: 'Clientes Activos',
                       value: _clients.where((c) => c.isActive && _calculateRemainingDays(c.endDate) > 0).length.toString(),
                     ),
@@ -273,6 +296,7 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: StatCard(
+                      mode: _darkMode,
                       title: 'Clientes Inactivos',
                       value: _clients.where((c) => !c.isActive || _calculateRemainingDays(c.endDate) <= 0).length.toString(),
                     ),
@@ -284,8 +308,10 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
               children: [
                 Expanded(
                   child: TextField(
+                    
                     controller: _searchController,
-                    decoration: const InputDecoration(
+                    decoration:  const InputDecoration(
+                      hintStyle: TextStyle(color: Colors.grey),
                       hintText: 'Buscar por nombre, email o teléfono...',
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(),
@@ -303,24 +329,28 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
                 ),
                 const SizedBox(width: 16),
                 FilterButton(
+                  mode: _darkMode,
                   text: 'Todos',
                   isActive: _currentFilter == 'Todos',
                   onPressed: () => _applyFilter('Todos'),
                 ),
                 const SizedBox(width: 8),
                 FilterButton(
+                  mode: _darkMode,
                   text: 'Activos',
                   isActive: _currentFilter == 'Activos',
                   onPressed: () => _applyFilter('Activos'),
                 ),
                 const SizedBox(width: 8),
                 FilterButton(
+                  mode: _darkMode,
                   text: 'Inactivos',
                   isActive: _currentFilter == 'Inactivos',
                   onPressed: () => _applyFilter('Inactivos'),
                 ),
                 const SizedBox(width: 8),
                 FilterButton(
+                  mode: _darkMode,
                   text: 'Próximos a vencer',
                   isActive: _currentFilter == 'Próximos a vencer',
                   onPressed: () => _applyFilter('Próximos a vencer'),
@@ -330,6 +360,7 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
             const SizedBox(height: 20),
             Expanded(
               child: ClientTable(
+                mode: _darkMode,
                 clients: _filteredClients,
                 onEdit: _editClient,
                 onRenew: _renewClient,
