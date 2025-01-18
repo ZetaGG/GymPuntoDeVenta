@@ -1,9 +1,15 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import 'package:gym_punto_venta/models/clients.dart';
+import 'package:gym_punto_venta/widgets/client_table.dart';
+import 'package:gym_punto_venta/widgets/statscard.dart';
+import 'package:gym_punto_venta/widgets/filter_button.dart';
+import 'package:gym_punto_venta/dialogs/add_client_dialog.dart';
+import 'package:gym_punto_venta/dialogs/edit_client_dialog.dart';
+import 'package:gym_punto_venta/dialogs/renew_client_dialog.dart';
+import 'package:gym_punto_venta/dialogs/edit_prices_dialog.dart';
 
 class GymManagementScreen extends StatefulWidget {
   const GymManagementScreen({super.key});
@@ -27,25 +33,37 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadClients();
+    _loadGymData();
   }
 
-  Future<void> _loadClients() async {
+  Future<void> _loadGymData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? clientsJson = prefs.getString('clients');
-    if (clientsJson != null) {
-      final List<dynamic> decodedJson = json.decode(clientsJson);
+    final String? gymDataJson = prefs.getString('gymData');
+    if (gymDataJson != null) {
+      final Map<String, dynamic> decodedJson = json.decode(gymDataJson);
       setState(() {
-        _clients = decodedJson.map((item) => Client.fromJson(item)).toList();
+        _clients = (decodedJson['clients'] as List)
+            .map((item) => Client.fromJson(item))
+            .toList();
+        _balance = decodedJson['balance'] ?? 0.0;
+        _monthlyFee = decodedJson['monthlyFee'] ?? 30.0;
+        _weeklyFee = decodedJson['weeklyFee'] ?? 10.0;
+        _visitFee = decodedJson['visitFee'] ?? 5.0;
         _applyFilter(_currentFilter);
       });
     }
   }
 
-  Future<void> _saveClients() async {
+  Future<void> _saveGymData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encodedJson = json.encode(_clients.map((e) => e.toJson()).toList());
-    await prefs.setString('clients', encodedJson);
+    final String encodedJson = json.encode({
+      'clients': _clients.map((e) => e.toJson()).toList(),
+      'balance': _balance,
+      'monthlyFee': _monthlyFee,
+      'weeklyFee': _weeklyFee,
+      'visitFee': _visitFee,
+    });
+    await prefs.setString('gymData', encodedJson);
   }
 
   void _applyFilter(String filter) {
@@ -83,13 +101,12 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
     return end.difference(today).inDays;
   }
 
-
-   void _deleteClient(Client client) {
+  void _deleteClient(Client client) {
     setState(() {
       _clients.removeWhere((c) => c.id == client.id);
       _applyFilter(_currentFilter);
     });
-    _saveClients();
+    _saveGymData();
   }
 
   void _addNewClient({bool isVisit = false}) {
@@ -97,96 +114,21 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
       setState(() {
         _balance += _visitFee;
       });
+      _saveGymData();
       return;
     }
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        final nameController = TextEditingController();
-        final emailController = TextEditingController();
-        final phoneController = TextEditingController();
-        String membershipType = 'Mensual';
-        DateTime startDate = DateTime.now();
-        DateTime endDate = startDate.add(const Duration(days: 30));
-
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Nuevo Cliente'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Nombre'),
-                    ),
-                    TextField(
-                      controller: emailController,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                    ),
-                    TextField(
-                      controller: phoneController,
-                      decoration: const InputDecoration(labelText: 'Teléfono'),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Text('Tipo de Membresía: '),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: membershipType,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'Mensual',
-                              child: Text('Mensual (30 días)'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Semanal',
-                              child: Text('Semanal (7 días)'),
-                            ),
-                          ],
-                          onChanged: (String? value) {
-                            setState(() {
-                              membershipType = value!;
-                              endDate = startDate.add(Duration(days: value == 'Mensual' ? 30 : 7));
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final newClient = Client(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: nameController.text,
-                      email: emailController.text,
-                      phone: phoneController.text,
-                      startDate: startDate,
-                      endDate: endDate,
-                      isActive: true,
-                    );
-                    setState(() {
-                      _clients.add(newClient);
-                      _balance += membershipType == 'Mensual' ? _monthlyFee : _weeklyFee;
-                      _applyFilter(_currentFilter);
-                    });
-                    _saveClients();
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
+        return AddClientDialog(
+          onSave: (Client newClient) {
+            setState(() {
+              _clients.add(newClient);
+              _balance += newClient.endDate.difference(newClient.startDate).inDays > 7 ? _monthlyFee : _weeklyFee;
+              _applyFilter(_currentFilter);
+            });
+            _saveGymData();
           },
         );
       },
@@ -197,69 +139,18 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        DateTime newEndDate = client.endDate;
-        DateTime initialDate = client.endDate.isBefore(DateTime.now())
-            ? DateTime.now()
-            : client.endDate;
-
-        return AlertDialog(
-          title: Text('Editar fecha de vencimiento'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Cliente: ${client.name}'),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () async {
-                  final DateTime? picked = await showDatePicker(
-                    context: context,
-                    initialDate: initialDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (picked != null) {
-                    newEndDate = DateTime(
-                      picked.year,
-                      picked.month,
-                      picked.day,
-                      23,
-                      59,
-                      59,
-                    );
-                  }
-                },
-                child: Text('Seleccionar nueva fecha'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  final index = _clients.indexWhere((c) => c.id == client.id);
-                  if (index != -1) {
-                    _clients[index] = Client(
-                      id: client.id,
-                      name: client.name,
-                      email: client.email,
-                      phone: client.phone,
-                      startDate: client.startDate,
-                      endDate: newEndDate,
-                      isActive: true,
-                    );
-                    _applyFilter(_currentFilter);
-                  }
-                });
-                _saveClients();
-                Navigator.of(context).pop();
-              },
-              child: Text('Guardar'),
-            ),
-          ],
+        return EditClientDialog(
+          client: client,
+          onSave: (Client updatedClient) {
+            setState(() {
+              final index = _clients.indexWhere((c) => c.id == updatedClient.id);
+              if (index != -1) {
+                _clients[index] = updatedClient;
+                _applyFilter(_currentFilter);
+              }
+            });
+            _saveGymData();
+          },
         );
       },
     );
@@ -269,77 +160,39 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        String membershipType = 'Mensual';
-        DateTime newEndDate = DateTime.now().add(const Duration(days: 30));
+        return RenewClientDialog(
+          client: client,
+          onRenew: (Client updatedClient, String membershipType) {
+            setState(() {
+              final index = _clients.indexWhere((c) => c.id == updatedClient.id);
+              if (index != -1) {
+                _clients[index] = updatedClient;
+                _balance += membershipType == 'Mensual' ? _monthlyFee : _weeklyFee;
+                _applyFilter(_currentFilter);
+              }
+            });
+            _saveGymData();
+          },
+        );
+      },
+    );
+  }
 
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Renovar Membresía'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Cliente: ${client.name}'),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      const Text('Tipo de Renovación: '),
-                      const SizedBox(width: 8),
-                      DropdownButton<String>(
-                        value: membershipType,
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Mensual',
-                            child: Text('Mensual (30 días)'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Semanal',
-                            child: Text('Semanal (7 días)'),
-                          ),
-                        ],
-                        onChanged: (String? value) {
-                          setState(() {
-                            membershipType = value!;
-                            newEndDate = DateTime.now().add(
-                              Duration(days: value == 'Mensual' ? 30 : 7),
-                            );
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      final index = _clients.indexWhere((c) => c.id == client.id);
-                      if (index != -1) {
-                        _clients[index] = Client(
-                          id: client.id,
-                          name: client.name,
-                          email: client.email,
-                          phone: client.phone,
-                          startDate: DateTime.now(),
-                          endDate: newEndDate,
-                          isActive: true,
-                        );
-                        _balance += membershipType == 'Mensual' ? _monthlyFee : _weeklyFee;
-                        _applyFilter(_currentFilter);
-                      }
-                    });
-                    _saveClients();
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Renovar'),
-                ),
-              ],
-            );
+  void _editPrices() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return EditPricesDialog(
+          monthlyFee: _monthlyFee,
+          weeklyFee: _weeklyFee,
+          visitFee: _visitFee,
+          onSave: (double newMonthlyFee, double newWeeklyFee, double newVisitFee) {
+            setState(() {
+              _monthlyFee = newMonthlyFee;
+              _weeklyFee = newWeeklyFee;
+              _visitFee = newVisitFee;
+            });
+            _saveGymData();
           },
         );
       },
@@ -347,299 +200,140 @@ class _GymManagementScreenState extends State<GymManagementScreen> {
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    body: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Sistema de Gestión - Nombre de tu Gimnasio',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () => _addNewClient(isVisit: true),
-                child: const Text('Visita'),
-              ),
-              ElevatedButton(
-                onPressed: () => _addNewClient(isVisit: false),
-                child: const Text('Nuevo Cliente'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SwitchListTile(
-            title: const Text('Mostrar Balance'),
-            value: _showBalanceView,
-            onChanged: (value) {
-              setState(() {
-                _showBalanceView = value;
-              });
-            },
-          ),
-          if (_showBalanceView)
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard('Balance Anual', _balance.toStringAsFixed(2)),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildStatCard('Balance Mensual', (_balance / 12).toStringAsFixed(2)),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _editPrices,
-                    child: const Text('Editar Precios'),
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard('Total Clientes', _clients.length.toString()),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildStatCard('Clientes Activos',
-                      _clients.where((c) => c.isActive && _calculateRemainingDays(c.endDate) > 0).length.toString()),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildStatCard('Clientes Inactivos',
-                      _clients.where((c) => !c.isActive || _calculateRemainingDays(c.endDate) <= 0).length.toString()),
-                ),
-              ],
-            ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'Buscar por nombre, email o teléfono...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _filteredClients = _clients.where((client) =>
-                          client.name.toLowerCase().contains(value.toLowerCase()) ||
-                          client.email.toLowerCase().contains(value.toLowerCase()) ||
-                          client.phone.toLowerCase().contains(value.toLowerCase())
-                      ).toList();
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              _buildFilterButton('Todos', _currentFilter == 'Todos'),
-              const SizedBox(width: 8),
-              _buildFilterButton('Activos', _currentFilter == 'Activos'),
-              const SizedBox(width: 8),
-              _buildFilterButton('Inactivos', _currentFilter == 'Inactivos'),
-              const SizedBox(width: 8),
-              _buildFilterButton('Próximos a vencer', _currentFilter == 'Próximos a vencer'),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Nombre')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('Teléfono')),
-                  DataColumn(label: Text('Fecha Inicio')),
-                  DataColumn(label: Text('Fecha Vencimiento')),
-                  DataColumn(label: Text('Estado')),
-                  DataColumn(label: Text('Acciones')),
-                ],
-                rows: _filteredClients.map((client) {
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(client.name)),
-                      DataCell(Text(client.email)),
-                      DataCell(Text(client.phone)),
-                      DataCell(Text(client.startDate.toString().split(' ')[0])),
-                      DataCell(Text(client.endDate.toString().split(' ')[0])),
-                      _buildStatusCell(client),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton(
-                              onPressed: () => _editClient(client),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                              ),
-                              child: const Text('Editar'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: () => _renewClient(client),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                              ),
-                              child: const Text('Renovar'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: () => _deleteClient(client),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                              ),
-                              child: const Text('Eliminar'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-
-  void _editPrices() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        final monthlyController = TextEditingController(text: _monthlyFee.toString());
-        final weeklyController = TextEditingController(text: _weeklyFee.toString());
-        final visitController = TextEditingController(text: _visitFee.toString());
-
-        return AlertDialog(
-          title: const Text('Editar Precios'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: monthlyController,
-                decoration: const InputDecoration(labelText: 'Precio Mensual'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: weeklyController,
-                decoration: const InputDecoration(labelText: 'Precio Semanal'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: visitController,
-                decoration: const InputDecoration(labelText: 'Precio de Visita'),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _monthlyFee = double.parse(monthlyController.text);
-                  _weeklyFee = double.parse(weeklyController.text);
-                  _visitFee = double.parse(visitController.text);
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  DataCell _buildStatusCell(Client client) {
-    final daysRemaining = _calculateRemainingDays(client.endDate);
-    final isExpired = daysRemaining <= 0;
-    final isNearExpiration = daysRemaining <= 7 && daysRemaining > 0;
-
-    Color backgroundColor;
-    Color textColor;
-    String statusText;
-
-    if (isExpired || !client.isActive) {
-      backgroundColor = Colors.red.withOpacity(0.2);
-      textColor = Colors.red.shade700;
-      statusText = 'Inactivo';
-    } else if (isNearExpiration) {
-      backgroundColor = Colors.orange.withOpacity(0.2);
-      textColor = Colors.orange.shade700;
-      statusText = 'Activo - $daysRemaining días restantes';
-    } else {
-      backgroundColor = Colors.green.withOpacity(0.2);
-      textColor = Colors.green.shade700;
-      statusText = 'Activo - $daysRemaining días restantes';
-    }
-
-    return DataCell(
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          statusText,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value) {
-    return Card(
-      child: Padding(
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Sistema de Gestión - Nombre de tu Gimnasio',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => _addNewClient(isVisit: true),
+                  child: const Text('Visita'),
+                ),
+                ElevatedButton(
+                  onPressed: () => _addNewClient(isVisit: false),
+                  child: const Text('Nuevo Cliente'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+            const SizedBox(height: 20),
+            SwitchListTile(
+              title: const Text('Mostrar Balance'),
+              value: _showBalanceView,
+              onChanged: (value) {
+                setState(() {
+                  _showBalanceView = value;
+                });
+              },
+            ),
+            if (_showBalanceView)
+              Row(
+                children: [
+                  Expanded(
+                    child: StatCard(title: 'Balance Anual', value: _balance.toStringAsFixed(2)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: StatCard(title: 'Balance Mensual', value: (_balance / 12).toStringAsFixed(2)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _editPrices,
+                      child: const Text('Editar Precios'),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: StatCard(title: 'Total Clientes', value: _clients.length.toString()),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: StatCard(
+                      title: 'Clientes Activos',
+                      value: _clients.where((c) => c.isActive && _calculateRemainingDays(c.endDate) > 0).length.toString(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: StatCard(
+                      title: 'Clientes Inactivos',
+                      value: _clients.where((c) => !c.isActive || _calculateRemainingDays(c.endDate) <= 0).length.toString(),
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar por nombre, email o teléfono...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _filteredClients = _clients.where((client) =>
+                            client.name.toLowerCase().contains(value.toLowerCase()) ||
+                            client.email.toLowerCase().contains(value.toLowerCase()) ||
+                            client.phone.toLowerCase().contains(value.toLowerCase())
+                        ).toList();
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                FilterButton(
+                  text: 'Todos',
+                  isActive: _currentFilter == 'Todos',
+                  onPressed: () => _applyFilter('Todos'),
+                ),
+                const SizedBox(width: 8),
+                FilterButton(
+                  text: 'Activos',
+                  isActive: _currentFilter == 'Activos',
+                  onPressed: () => _applyFilter('Activos'),
+                ),
+                const SizedBox(width: 8),
+                FilterButton(
+                  text: 'Inactivos',
+                  isActive: _currentFilter == 'Inactivos',
+                  onPressed: () => _applyFilter('Inactivos'),
+                ),
+                const SizedBox(width: 8),
+                FilterButton(
+                  text: 'Próximos a vencer',
+                  isActive: _currentFilter == 'Próximos a vencer',
+                  onPressed: () => _applyFilter('Próximos a vencer'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ClientTable(
+                clients: _filteredClients,
+                onEdit: _editClient,
+                onRenew: _renewClient,
+                onDelete: _deleteClient,
               ),
             ),
           ],
@@ -647,16 +341,6 @@ Widget build(BuildContext context) {
       ),
     );
   }
-
-    Widget _buildFilterButton(String text, bool isActive) {
-    return ElevatedButton(
-      onPressed: () => _applyFilter(text),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isActive ? Colors.blue : Colors.white,
-        foregroundColor: isActive ? Colors.white : Colors.blue,
-      ),
-      child: Text(text),
-    );
-  }
 }
+
 
