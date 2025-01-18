@@ -34,11 +34,11 @@ class ClientTable extends StatelessWidget {
         rows: clients.map((client) {
           return DataRow(
             cells: [
-              DataCell(Text(client.name)),
-              DataCell(Text(client.email)),
-              DataCell(Text(client.phone)),
-              DataCell(Text(client.startDate.toString().split(' ')[0])),
-              DataCell(Text(client.endDate.toString().split(' ')[0])),
+              DataCell(Text(client.name, style: TextStyle(color: Colors.grey),)),
+              DataCell(Text(client.email, style: TextStyle(color: Colors.grey),)),
+              DataCell(Text(client.phone, style: TextStyle(color: Colors.grey),)),
+              DataCell(Text(client.startDate.toString().split(' ')[0], style: TextStyle(color: Colors.grey),)),
+              DataCell(Text(client.endDate.toString().split(' ')[0], style: TextStyle(color: Colors.grey),)),
               _buildStatusCell(client),
               DataCell(
                 Row(

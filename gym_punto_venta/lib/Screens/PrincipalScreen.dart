@@ -1,6 +1,12 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:convert';
+
+
 import 'package:gym_punto_venta/models/clients.dart';
 import 'package:gym_punto_venta/widgets/client_table.dart';
 import 'package:gym_punto_venta/widgets/statscard.dart';
@@ -166,6 +172,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
       context: context,
       builder: (BuildContext context) {
         return RenewClientDialog(
+          mode: _darkMode,
           client: client,
           onRenew: (Client updatedClient, String membershipType) {
             setState(() {
@@ -205,6 +212,157 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     );
   }
 
+void _exportToJson() async {
+  try {
+    // Obtener los datos de SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final Map<String, dynamic> allPrefs = prefs.getKeys().fold({}, (map, key) {
+      map[key] = prefs.get(key);
+      return map;
+    });
+    
+    // Convertir a JSON
+    final jsonString = jsonEncode(allPrefs);
+    
+    // Permitir al usuario elegir dónde guardar el archivo
+    String? selectedDirectory = await FilePicker.platform.saveFile(
+      dialogTitle: 'Guardar archivo de configuración',
+      fileName: 'gym_config.json',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+
+    if (selectedDirectory != null) {
+      final file = File(selectedDirectory);
+      await file.writeAsString(jsonString);
+
+      await _loadGymData();
+
+      setState(() {
+        
+      });
+      // Mostrar un mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Archivo guardado en: ${file.path}')),
+      );
+    }
+  } catch (e) {
+    // Mostrar error
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error al exportar: $e')),
+    );
+  }
+}
+
+void _importFromJson() async {
+  try {
+    // Permitir al usuario seleccionar el archivo
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      dialogTitle: 'Seleccionar archivo de configuración',
+    );
+
+    if (result != null) {
+      // Leer el archivo seleccionado
+      final file = File(result.files.single.path!);
+      final jsonString = await file.readAsString();
+      
+      // Decodificar el JSON
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+      
+      // Obtener SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Restaurar los datos
+      await Future.forEach(data.entries, (MapEntry<String, dynamic> entry) async {
+        final key = entry.key;
+        final value = entry.value;
+        
+        if (value is int) {
+          await prefs.setInt(key, value);
+        } else if (value is double) {
+          await prefs.setDouble(key, value);
+        } else if (value is bool) {
+          await prefs.setBool(key, value);
+        } else if (value is String) {
+          await prefs.setString(key, value);
+        } else if (value is List<String>) {
+          await prefs.setStringList(key, value);
+        } else {
+          print('Tipo no soportado para la clave: $key');
+        }
+      });
+
+      // Mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Configuración importada correctamente')),
+      );
+    }
+  } catch (e) {
+    // Mostrar error
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error al importar: $e')),
+    );
+  }
+}
+
+void _showSettingsMenu() {
+  showModalBottomSheet(
+    backgroundColor: _darkMode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.upload_file, 
+                    color: _darkMode ? Colors.white : Colors.black),
+                  title: Text('Exportar JSON',
+                    style: TextStyle(color: _darkMode ? Colors.white : Colors.black)),
+                  onTap: () {
+                    _exportToJson();
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.download,
+                    color: _darkMode ? Colors.white : Colors.black),
+                  title: Text('Importar JSON',
+                    style: TextStyle(color: _darkMode ? Colors.white : Colors.black)),
+                  onTap: () {
+                    _importFromJson();
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.dark_mode,
+                    color: _darkMode ? Colors.white : Colors.black),
+                  title: Text('Modo Oscuro',
+                    style: TextStyle(color: _darkMode ? Colors.white : Colors.black)),
+                  trailing: Switch(
+                    value: _darkMode,
+                    onChanged: (value) {
+                      setModalState(() {
+                        setState(() {
+                          _darkMode = value;
+                        });
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -225,11 +383,6 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                     color: Colors.blue,
                   ),
                 ),
-                Switch(value: _darkMode, activeColor: Colors.blue ,onChanged:  (value) {
-                setState(() {
-                  _darkMode = value;
-                });
-              },),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[800] : Colors.white),
                   onPressed: () => _addNewClient(isVisit: true),
@@ -245,6 +398,8 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             ),
             const SizedBox(height: 20),
             SwitchListTile(
+              inactiveTrackColor: _darkMode ? Colors.grey[800] : Colors.white,
+              inactiveThumbColor: _darkMode ? Colors.white : Colors.grey, 
                 title: Text(
                 'Mostrar Balance',
                 style: TextStyle(color: _darkMode ? Colors.white : Colors.grey),
@@ -370,6 +525,11 @@ class GymManagementScreenState extends State<GymManagementScreen> {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+  onPressed: _showSettingsMenu,
+  child: const Icon(Icons.settings),
+),
+floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
