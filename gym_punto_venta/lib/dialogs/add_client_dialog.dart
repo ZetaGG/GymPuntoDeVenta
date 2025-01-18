@@ -5,7 +5,7 @@ class AddClientDialog extends StatefulWidget {
   final Function(Client) onSave;
   bool mode;
 
-   AddClientDialog({Key? key, required this.mode, required this.onSave}) : super(key: key);
+  AddClientDialog({Key? key, required this.mode, required this.onSave}) : super(key: key);
 
   @override
   _AddClientDialogState createState() => _AddClientDialogState();
@@ -22,31 +22,34 @@ class _AddClientDialogState extends State<AddClientDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) :Colors.white,
-      title: const Text('Nuevo Cliente', style: TextStyle(color: Colors.blue)),
+      backgroundColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
+      title: Text('Nuevo Cliente', style: TextStyle(color: widget.mode ? Colors.white : Colors.blue)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nombre', hintStyle: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              decoration: InputDecoration(labelText: 'Nombre', labelStyle: TextStyle(color: widget.mode ? Colors.white : Colors.black)),
+              style: TextStyle(color: widget.mode ? Colors.white : Colors.black),
             ),
             TextField(
               controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email' , hintStyle: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              decoration: InputDecoration(labelText: 'Email', labelStyle: TextStyle(color: widget.mode ? Colors.white : Colors.black)),
+              style: TextStyle(color: widget.mode ? Colors.white : Colors.black),
             ),
             TextField(
               controller: phoneController,
-              decoration: const InputDecoration(labelText: 'Teléfono' , hintStyle: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              decoration: InputDecoration(labelText: 'Teléfono', labelStyle: TextStyle(color: widget.mode ? Colors.white : Colors.black)),
+              style: TextStyle(color: widget.mode ? Colors.white : Colors.black),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                const Text('Tipo de Membresía: ' , style: TextStyle(color: Colors.grey)),
+                Text('Tipo de Membresía: ', style: TextStyle(color: widget.mode ? Colors.white : Colors.grey)),
                 const SizedBox(width: 8),
                 DropdownButton<String>(
-                  dropdownColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) :Colors.white,
+                  dropdownColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
                   value: membershipType,
                   items: const [
                     DropdownMenuItem(
@@ -77,7 +80,7 @@ class _AddClientDialogState extends State<AddClientDialog> {
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.mode ? Colors.grey[800]:Colors.white,
+            backgroundColor: widget.mode ? Colors.grey[800] : Colors.blue,
           ),
           onPressed: () {
             final newClient = Client(
@@ -92,10 +95,9 @@ class _AddClientDialogState extends State<AddClientDialog> {
             widget.onSave(newClient);
             Navigator.of(context).pop();
           },
-          child: const Text('Guardar', style: TextStyle(color: Colors.blue)),
+          child: const Text('Guardar', style: TextStyle(color: Colors.white)),
         ),
       ],
     );
   }
 }
-
