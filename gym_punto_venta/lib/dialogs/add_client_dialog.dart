@@ -2,18 +2,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gym_punto_venta/models/clients.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 
 class AddClientDialog extends StatefulWidget {
   final Function(Client) onSave;
   final bool mode;
+  
   final Future<List<Map<String, dynamic>>> membershipTypesFuture;
 
   const AddClientDialog({
-    Key? key,
+    super.key,
     required this.mode,
     required this.onSave,
     required this.membershipTypesFuture,
-  }) : super(key: key);
+  });
 
   @override
   _AddClientDialogState createState() => _AddClientDialogState();
@@ -200,23 +202,25 @@ class _AddClientDialogState extends State<AddClientDialog> {
             backgroundColor: widget.mode ? Colors.teal : Colors.blue, // Standardized button color
           ),
           onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              final clientDataFromDialog = Client(
-                id: "TEMPORARY_ID_WILL_BE_REPLACED", // This will be replaced
-                name: _nameController.text,
-                email: _emailController.text,
-                phone: _phoneController.text,
-                membershipType: _selectedMembershipType!,
-                paymentStatus: _selectedPaymentStatus,
-                photo: _selectedPhotoPath,
-                startDate: DateTime.now(), // Placeholder, GMF will set final
-                endDate: DateTime.now(),   // Placeholder, GMF will set final
-                isActive: true,            // Placeholder, GMF will set final
-              );
-              widget.onSave(clientDataFromDialog);
-              Navigator.of(context).pop();
-            }
-          },
+  if (_formKey.currentState!.validate()) {
+      final uuid = Uuid();
+
+    final clientDataFromDialog = Client(
+      id: uuid.v4(), // Ahora es único
+      name: _nameController.text,
+      email: _emailController.text,
+      phone: _phoneController.text,
+      membershipType: _selectedMembershipType!,
+      paymentStatus: _selectedPaymentStatus,
+      photo: _selectedPhotoPath,
+      startDate: DateTime.now(), // Placeholder, GMF will set final
+      endDate: DateTime.now(),   // Placeholder, GMF will set final
+      isActive: true,            // Placeholder, GMF will set final
+    );
+    widget.onSave(clientDataFromDialog);
+    Navigator.of(context).pop();
+  }
+},
           child: const Text('Guardar', style: TextStyle(color: Colors.white)),
         ),
       ],

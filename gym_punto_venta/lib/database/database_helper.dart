@@ -39,7 +39,7 @@ class DatabaseHelper {
         end_date TEXT,
         is_active INTEGER DEFAULT 1,
         last_visit_date TEXT,
-        current_membership_price REAL, // Added current_membership_price
+        current_membership_price REAL, 
         FOREIGN KEY (membership_type_id) REFERENCES Memberships(id)
       )
     ''');
@@ -121,21 +121,19 @@ class DatabaseHelper {
   // Client CRUD Methods
 
   Future<int> insertClient(Client client) async {
-    final db = await database;
-    final membership = await getMembershipByName(client.membershipType);
+  final db = await database;
+  final membership = await getMembershipByName(client.membershipType);
 
-    Map<String, dynamic> clientMap = client.toJson();
-    if (membership != null) {
-      clientMap['membership_type_id'] = membership['id'];
-      clientMap['current_membership_price'] = membership['price']; // Store current price
-    } else {
-      // Handle case where membership type doesn't exist, perhaps throw an error or use a default
-      clientMap['membership_type_id'] = null;
-      clientMap['current_membership_price'] = null;
-    }
-    // Ensure dates are strings, and boolean is int, as per toJson() in Client model
-    return await db.insert('Clients', clientMap);
+  Map<String, dynamic> clientMap = client.toDbJson(); // <--- Usa toDbJson, NO toJson
+  if (membership != null) {
+    clientMap['membership_type_id'] = membership['id'];
+    clientMap['current_membership_price'] = membership['price'];
+  } else {
+    clientMap['membership_type_id'] = null;
+    clientMap['current_membership_price'] = null;
   }
+  return await db.insert('Clients', clientMap);
+}
 
   Future<List<Client>> findClientsBySimilarity(String name, String? phone, String? email) async {
     final db = await database;
@@ -199,27 +197,25 @@ class DatabaseHelper {
   }
 
   Future<int> updateClient(Client client) async {
-    final db = await database;
-    final membership = await getMembershipByName(client.membershipType);
+  final db = await database;
+  final membership = await getMembershipByName(client.membershipType);
 
-    Map<String, dynamic> clientMap = client.toJson();
-    if (membership != null) {
-      clientMap['membership_type_id'] = membership['id'];
-      clientMap['current_membership_price'] = membership['price']; // Update current price if membership changes
-    } else {
-      // Handle case where membership type might be invalid during an update
-      // Or perhaps this scenario should be prevented by UI
-      clientMap['membership_type_id'] = client.membershipTypeId; // Retain existing if not found
-      clientMap['current_membership_price'] = client.currentMembershipPrice; // Retain existing
-    }
-
-    return await db.update(
-      'Clients',
-      clientMap,
-      where: 'id = ?',
-      whereArgs: [client.id],
-    );
+  Map<String, dynamic> clientMap = client.toDbJson();
+  if (membership != null) {
+    clientMap['membership_type_id'] = membership['id'];
+    clientMap['current_membership_price'] = membership['price'];
+  } else {
+    clientMap['membership_type_id'] = client.membershipTypeId;
+    clientMap['current_membership_price'] = client.currentMembershipPrice;
   }
+
+  return await db.update(
+    'Clients',
+    clientMap,
+    where: 'id = ?',
+    whereArgs: [client.id],
+  );
+}
 
   Future<int> deleteClient(String id) async {
     final db = await database;

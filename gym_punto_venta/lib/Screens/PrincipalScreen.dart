@@ -156,7 +156,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.directions_walk),
                   label: const Text('Visita'),
-                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
+                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100],foregroundColor: _darkMode ? Colors.blue : Colors.blue),
                   onPressed: () async {
                     await _functions.logVisitFeeAsIncome();
                     if (mounted) {
@@ -170,7 +170,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.person_add),
                   label: const Text('Nuevo Cliente'),
-                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
+                  style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100],foregroundColor: _darkMode ? Colors.blue : Colors.blue),
                   onPressed: () => _functions.addNewClientDialog(), // Removed isVisit parameter
                 ),
                 // const SizedBox(width: 8),
@@ -221,8 +221,8 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 setState(() {
                   _filteredClients = _clients.where((client) =>
                       client.name.toLowerCase().contains(value.toLowerCase()) ||
-                      client.email.toLowerCase().contains(value.toLowerCase()) ||
-                      client.phone.toLowerCase().contains(value.toLowerCase())
+                      (client.email?.toLowerCase() ?? '').contains(value.toLowerCase()) ||
+                      (client.phone?.toLowerCase() ?? '').contains(value.toLowerCase())
                   ).toList();
                 });
               },
@@ -236,7 +236,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 mode: _darkMode,
                 clients: _filteredClients,
                 onEdit: _functions.editClientDialog,
-                onRenew: (client) => _functions.renewClientDialog(client),
+                onRenew: (client) => _functions.renewClientDialog(client, context),
                 onDelete: (client) async {
                   await _functions.deleteClient(client);
                   // _applyFilter(_currentFilter); // Re-apply filter after delete if needed, though updateClients should handle it
