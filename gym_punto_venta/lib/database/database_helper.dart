@@ -73,8 +73,49 @@ class DatabaseHelper {
     await db.execute("INSERT INTO AppSettings (key, value) VALUES ('license_key', '')");
     await db.execute("INSERT INTO AppSettings (key, value) VALUES ('activated_device_id', '')");
 
+    // Income Table
+    await db.execute('''
+      CREATE TABLE Income (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        related_client_id TEXT,
+        FOREIGN KEY (related_client_id) REFERENCES Clients(id) ON DELETE SET NULL
+      )
+    ''');
 
-    print("Database created with tables Clients, Memberships, and AppSettings!");
+    // Expenses Table
+    await db.execute('''
+      CREATE TABLE Expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        category TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+    CREATE TABLE PriceHistory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      membership_id INTEGER NOT NULL,
+      old_price REAL NOT NULL,
+      new_price REAL NOT NULL,
+      change_date TEXT NOT NULL,
+      FOREIGN KEY (membership_id) REFERENCES Memberships(id) ON DELETE CASCADE
+    )
+    ''');
+
+    // Add Indexes
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_membership_type_id ON Clients(membership_type_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_name ON Clients(name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_income_date ON Income(date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_expense_date ON Expenses(date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_pricehistory_membership_id ON PriceHistory(membership_id)');
+
+    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, and Indexes!");
   }
 
   // Client CRUD Methods
@@ -94,6 +135,41 @@ class DatabaseHelper {
     }
     // Ensure dates are strings, and boolean is int, as per toJson() in Client model
     return await db.insert('Clients', clientMap);
+  }
+
+  Future<List<Client>> findClientsBySimilarity(String name, String? phone, String? email) async {
+    final db = await database;
+    String query = '''
+      SELECT c.*, m.name as membership_name, m.price as membership_price, m.duration_days as membership_duration_days
+      FROM Clients c
+      LEFT JOIN Memberships m ON c.membership_type_id = m.id
+      WHERE
+    ''';
+    List<String> conditions = [];
+    List<dynamic> args = [];
+
+    String normalizedName = name.trim().toLowerCase();
+
+    if (phone != null && phone.isNotEmpty) {
+      conditions.add("(LOWER(c.name) LIKE ? AND c.phone = ?)");
+      args.add('%$normalizedName%');
+      args.add(phone);
+    }
+    if (email != null && email.isNotEmpty) {
+      conditions.add("(LOWER(c.name) LIKE ? AND LOWER(c.email) = ?)");
+      args.add('%$normalizedName%');
+      args.add(email.toLowerCase());
+    }
+
+    if (conditions.isEmpty) {
+      query += "LOWER(c.name) LIKE ?";
+      args.add('%$normalizedName%');
+    } else {
+      query += conditions.join(" OR ");
+    }
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery(query, args);
+    return List.generate(maps.length, (i) => Client.fromJson(maps[i]));
   }
 
   Future<List<Client>> getAllClients() async {
@@ -190,20 +266,37 @@ class DatabaseHelper {
 
   Future<int> updateMembership(Map<String, dynamic> membership) async {
     final db = await database;
+    // Use ID for updating memberships, as name can also be changed.
     return await db.update(
       'Memberships',
       membership,
-      where: 'name = ?', // Assuming name is the key for updates, or use id if preferred
-      whereArgs: [membership['name']],
+      where: 'id = ?',
+      whereArgs: [membership['id']],
     );
   }
 
-  Future<int> deleteMembership(String name) async {
+  Future<int> deleteMembership(int membershipId) async { // Changed to accept int membershipId
     final db = await database;
     return await db.delete(
       'Memberships',
-      where: 'name = ?',
-      whereArgs: [name],
+      where: 'id = ?', // Use ID for deleting
+      whereArgs: [membershipId],
+    );
+  }
+
+  // PriceHistory CRUD Methods
+  Future<int> insertPriceChange(Map<String, dynamic> historyData) async {
+    final db = await database;
+    return await db.insert('PriceHistory', historyData);
+  }
+
+  Future<List<Map<String, dynamic>>> getPriceHistoryForMembership(int membershipId) async {
+    final db = await database;
+    return await db.query(
+      'PriceHistory',
+      where: 'membership_id = ?',
+      whereArgs: [membershipId],
+      orderBy: 'change_date DESC',
     );
   }
 
@@ -229,5 +322,27 @@ class DatabaseHelper {
       {'key': key, 'value': value},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // Income CRUD Methods
+  Future<int> insertIncome(Map<String, dynamic> incomeData) async {
+    final db = await database;
+    return await db.insert('Income', incomeData);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllIncome({String? orderBy = 'date DESC'}) async {
+    final db = await database;
+    return await db.query('Income', orderBy: orderBy);
+  }
+
+  // Expense CRUD Methods
+  Future<int> insertExpense(Map<String, dynamic> expenseData) async {
+    final db = await database;
+    return await db.insert('Expenses', expenseData);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllExpenses({String? orderBy = 'date DESC'}) async {
+    final db = await database;
+    return await db.query('Expenses', orderBy: orderBy);
   }
 }

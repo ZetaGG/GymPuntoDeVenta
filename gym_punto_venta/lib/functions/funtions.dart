@@ -2,20 +2,22 @@
 // import 'package:file_picker/file_picker.dart'; // Keep for FilePicker
 import 'package:flutter/material.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Need this for migration
-import 'dart:convert'; // Keep for potential future use with export/import
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:gym_punto_venta/models/clients.dart';
 import 'package:gym_punto_venta/dialogs/add_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/edit_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/renew_client_dialog.dart';
-import 'package:gym_punto_venta/dialogs/edit_prices_dialog.dart';
+// import 'package:gym_punto_venta/dialogs/edit_prices_dialog.dart'; // Removed import
 import 'package:gym_punto_venta/database/database_helper.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:device_info_plus/device_info_plus.dart'; // Import device_info_plus
-import 'dart:io'; // Import dart:io for Platform
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
+import 'package:uuid/uuid.dart'; // Added import for Uuid
 
 class GymManagementFunctions {
   final BuildContext context;
+  final Uuid _uuid = Uuid(); // Added Uuid instance
   bool darkMode; // Made non-final as it might be loaded from DB
   List<Client> _clients; // Made private and mutable
   final Function(List<Client>) updateClients;
@@ -94,7 +96,7 @@ class GymManagementFunctions {
             // Default membershipType to "Monthly" for migration
             // dbHelper.insertClient will look up its ID and price.
             Client migratedClient = Client(
-              id: oldClientMap['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(), // Ensure ID is string
+              id: oldClientMap['id']?.toString() ?? _uuid.v4(), // Use Uuid for new ID
               name: oldClientMap['name'] ?? 'Unknown Name',
               email: oldClientMap['email']?.toString(),
               phone: oldClientMap['phone']?.toString(),
@@ -206,7 +208,126 @@ class GymManagementFunctions {
     }
   }
 
+  Future<Map<String, dynamic>> getFinancialOverview({DateTimeRange? dateRange}) async {
+    List<Map<String, dynamic>> allIncome = await dbHelper.getAllIncome();
+    List<Map<String, dynamic>> allExpenses = await dbHelper.getAllExpenses();
+
+    if (dateRange != null) {
+      allIncome = allIncome.where((i) {
+        final itemDate = DateTime.parse(i['date']);
+        // Inclusive of start and end date
+        return !itemDate.isBefore(dateRange.start.subtract(const Duration(microseconds: 1))) &&
+               !itemDate.isAfter(dateRange.end.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)));
+      }).toList();
+      allExpenses = allExpenses.where((e) {
+        final itemDate = DateTime.parse(e['date']);
+        return !itemDate.isBefore(dateRange.start.subtract(const Duration(microseconds: 1))) &&
+               !itemDate.isAfter(dateRange.end.add(const Duration(days: 1)).subtract(const Duration(microseconds: 1)));
+      }).toList();
+    }
+
+    double totalIncome = allIncome.fold(0.0, (sum, item) => sum + (item['amount'] as double? ?? 0.0));
+    double totalExpenses = allExpenses.fold(0.0, (sum, item) => sum + (item['amount'] as double? ?? 0.0));
+    double netProfit = totalIncome - totalExpenses;
+
+    return {
+      'totalIncome': totalIncome,
+      'totalExpenses': totalExpenses,
+      'netProfit': netProfit,
+      'allIncomeTransactions': allIncome,
+      'allExpenseTransactions': allExpenses,
+    };
+  }
+
+  Future<void> addManualIncome(Map<String, dynamic> incomeData) async {
+    // Full implementation in next subtask will save to DB and update balance
+    print("Placeholder: Save manual income: $incomeData");
+    // For now, let's insert it so we can test retrieval later
+    await dbHelper.insertIncome(incomeData);
+    // TODO: Update overall balance if this type of income affects it.
+    // For now, let's add the income to the current balance.
+    double amount = incomeData['amount'] as double? ?? 0.0;
+    _balance += amount;
+    await dbHelper.updateSetting('current_balance', _balance.toString());
+    updateBalanceCallback(_balance);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Manual income of ${amount.toStringAsFixed(2)} added successfully.')),
+    );
+  }
+
+  Future<void> addManualExpense(Map<String, dynamic> expenseData) async {
+    // Full implementation in next subtask will save to DB and update balance
+    print("Placeholder: Save manual expense: $expenseData");
+    // For now, let's insert it so we can test retrieval later
+    await dbHelper.insertExpense(expenseData);
+    // TODO: Update overall balance.
+    double amount = expenseData['amount'] as double? ?? 0.0;
+    _balance -= amount;
+    await dbHelper.updateSetting('current_balance', _balance.toString());
+    updateBalanceCallback(_balance);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Manual expense of ${amount.toStringAsFixed(2)} added successfully.')),
+    );
+  }
+
+  Future<void> logVisitFeeAsIncome() async {
+    var visitMembership = await dbHelper.getMembershipByName('Visit');
+    double visitFeeAmount = visitMembership?['price'] as double? ?? 5.0; // Default if 'Visit' price not found
+
+    Map<String, dynamic> incomeData = {
+      'description': 'Walk-in Visit Fee',
+      'amount': visitFeeAmount,
+      'date': DateTime.now().toIso8601String(),
+      'type': 'Visit Fee',
+      // 'related_client_id': null // No specific client for a generic walk-in
+    };
+    await dbHelper.insertIncome(incomeData);
+
+    // Also update the main balance
+    // _balance is already up-to-date via loadGymData or previous operations.
+    _balance += visitFeeAmount;
+    await dbHelper.updateSetting('current_balance', _balance.toString());
+    updateBalanceCallback(_balance); // Notify UI
+    print("Visit fee logged. New balance: $_balance");
+  }
+
   // Licensing methods
+  // ... (isTrialActive, isLicensed, areFeaturesUnlocked, getLicenseDisplayStatus remain the same)
+
+  Future<List<Map<String, dynamic>>> getAllMembershipTypesForManagement() async {
+    return await dbHelper.getMembershipTypes();
+  }
+
+  Future<void> addMembershipType(Map<String, dynamic> data) async {
+    await dbHelper.insertMembership({'name': data['name'], 'price': data['price'], 'duration_days': data['duration_days']});
+    await loadGymData(); // Reload fees and potentially other data dependent on memberships
+  }
+
+  Future<void> updateMembershipType(Map<String, dynamic> oldData, Map<String, dynamic> newData) async {
+    final Map<String, dynamic> dataToUpdate = {
+      'id': oldData['id'],
+      'name': newData['name'],
+      'price': newData['price'],
+      'duration_days': newData['duration_days'],
+    };
+
+    if (oldData['price'] != newData['price']) {
+      await dbHelper.insertPriceChange({
+        'membership_id': oldData['id'],
+        'old_price': oldData['price'],
+        'new_price': newData['price'],
+        'change_date': DateTime.now().toIso8601String(),
+      });
+    }
+    await dbHelper.updateMembership(dataToUpdate);
+    await loadGymData(); // Reload fees and potentially other data
+  }
+
+  Future<void> deleteMembershipType(int membershipId) async {
+    await dbHelper.deleteMembership(membershipId);
+    await loadGymData(); // Reload fees and potentially other data
+  }
+
   bool isTrialActive() {
     if (licenseStatus == "Trial" && installationDate != null) {
       return DateTime.now().difference(installationDate!).inDays <= trialDurationDays;
@@ -341,29 +462,17 @@ class GymManagementFunctions {
     return await dbHelper.getMembershipTypes();
   }
 
-  void addNewClientDialog({bool isVisit = false}) { // darkMode parameter removed, use instance variable
-    if (isVisit) {
-      // For "Visit" type, we might create a temporary client or just update balance
-      // Assuming "Visit" implies a quick fee addition without full client registration here.
-      // This part might need further clarification based on exact requirements for "Visit"
-      _balance += _visitFee;
-      updateBalanceCallback(_balance);
-      dbHelper.updateSetting('current_balance', _balance.toString());
-      // Optionally, log this visit if needed, or create a simplified client record
-      print("Visit registered. New balance: $_balance");
-      return;
-    }
-
+  void addNewClientDialog() { // isVisit parameter removed
+    // The isVisit logic was previously removed/commented out as it's handled by PrincipalScreen's direct call
+    // to logVisitFeeAsIncome. This method is now solely for adding full new clients.
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AddClientDialog(
           mode: darkMode,
-          membershipTypesFuture: getMembershipTypesForDialog(), // Pass future here
-          onSave: (Client newClient) async {
-            // newClient here is partially populated by the dialog (name, email, phone, membershipType, paymentStatus, photo)
-            // We need to fetch membership details to set price, duration, startDate, endDate etc.
-            var membershipDetails = await dbHelper.getMembershipByName(newClient.membershipType);
+          membershipTypesFuture: getMembershipTypesForDialog(),
+          onSave: (Client clientDataFromDialog) async { // Renamed for clarity
+            var membershipDetails = await dbHelper.getMembershipByName(clientDataFromDialog.membershipType);
             if (membershipDetails == null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Error: Tipo de membresía no encontrado.')),
@@ -383,7 +492,66 @@ class GymManagementFunctions {
             // newClient.id should be generated if not provided by dialog, but UUID is typically client-side
             // newClient.photo is already set by dialog (placeholder for now)
 
+            // Create the definitive Client object HERE with a new UUID
+            final Client newClient = Client(
+              id: _uuid.v4(), // Generate new UUID here
+              name: clientDataFromDialog.name,
+              email: clientDataFromDialog.email,
+              phone: clientDataFromDialog.phone,
+              membershipType: clientDataFromDialog.membershipType,
+              paymentStatus: clientDataFromDialog.paymentStatus,
+              photo: clientDataFromDialog.photo,
+              startDate: DateTime.now(),
+              endDate: DateTime.now().add(Duration(days: durationDays)),
+              isActive: true,
+              currentMembershipPrice: price,
+              // membershipTypeId will be set by dbHelper.insertClient
+            );
+
+            // Show potential duplicate dialog (using newClient with generated ID)
+            List<Client> similarClients = await dbHelper.findClientsBySimilarity(
+                newClient.name, newClient.phone, newClient.email // Pass newClient's data
+            );
+
+            if (similarClients.isNotEmpty) {
+              bool? proceed = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Potential Duplicate Client'),
+                    content: Text(
+                      'A client with a similar name and contact information already exists:
+
+' +
+                      similarClients.map((c) => '- ${c.name} (${c.phone ?? c.email ?? 'No contact'})').join('
+') +
+                      '
+
+Are you sure you want to add this new client?'
+                    ),
+                    actions: <Widget>[
+                      TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(dialogContext).pop(false)),
+                      ElevatedButton(child: const Text('Add Anyway'), onPressed: () => Navigator.of(dialogContext).pop(true)),
+                    ],
+                  );
+                },
+              );
+              if (proceed != true) {
+                return; // User cancelled
+              }
+            }
+
             await dbHelper.insertClient(newClient);
+
+            // Record income for new membership
+            Map<String, dynamic> incomeData = {
+              'description': 'New Membership: ${newClient.name} (${newClient.membershipType})',
+              'amount': newClient.currentMembershipPrice, // This is the price of the membership
+              'date': DateTime.now().toIso8601String(),
+              'type': 'Membership',
+              'related_client_id': newClient.id
+            };
+            await dbHelper.insertIncome(incomeData);
 
             _balance += price; // Add price to balance only if paymentStatus is 'Paid'
             await dbHelper.updateSetting('current_balance', _balance.toString());
@@ -399,7 +567,7 @@ class GymManagementFunctions {
     );
   }
 
-  void editClientDialog(Client client) { // darkMode parameter removed
+  void editClientDialog(Client client) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -433,7 +601,7 @@ class GymManagementFunctions {
     );
   }
 
-  void renewClientDialog(Client client) { // mode parameter (darkMode) removed
+  void renewClientDialog(Client client) {
      showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -463,16 +631,24 @@ class GymManagementFunctions {
 
             await dbHelper.updateClient(clientToRenew);
 
+            // Record income for renewal
+            Map<String, dynamic> incomeData = {
+              'description': 'Membership Renewal: ${clientToRenew.name} ($newMembershipTypeName)',
+              'amount': price,
+              'date': DateTime.now().toIso8601String(),
+              'type': 'Membership',
+              'related_client_id': clientToRenew.id
+            };
+            await dbHelper.insertIncome(incomeData);
+
             // Update balance
-            // String? balanceStr = await dbHelper.getSetting('current_balance'); // _balance is already loaded
-            // double currentBalance = double.tryParse(balanceStr ?? '0.0') ?? 0.0;
-            _balance += price; // Use the class member _balance
+            _balance += price;
             await dbHelper.updateSetting('current_balance', _balance.toString());
-            updateBalanceCallback(_balance); // Notify UI of balance change immediately
+            updateBalanceCallback(_balance);
 
 
             // Reload all clients and update UI
-            await loadGymData(); // This will call updateClients and applyFilter
+            await loadGymData();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('${clientToRenew.name} renewed successfully.')),
             );
@@ -545,40 +721,8 @@ class GymManagementFunctions {
     }
   }
 
-  void editPricesDialog() { // darkMode parameter removed
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return EditPricesDialog(
-          mode: darkMode,
-          monthlyFee: _monthlyFee, // Use internal state
-          weeklyFee: _weeklyFee,   // Use internal state
-          visitFee: _visitFee,     // Use internal state
-          onSave: (double newMonthlyFee, double newWeeklyFee, double newVisitFee) async {
-            // Assuming duration_days does not change here. If it can, those need to be passed too.
-            // Also, getMembershipByName returns a Map, we need ID to update if not using name as key.
-            // For simplicity, using name as key for update is okay if Memberships table 'name' is UNIQUE.
-            // The current dbHelper.updateMembership uses name as whereArg.
-
-            var monthly = await dbHelper.getMembershipByName('Monthly');
-            if (monthly != null) {
-                await dbHelper.updateMembership({'id': monthly['id'], 'name': 'Monthly', 'price': newMonthlyFee, 'duration_days': monthly['duration_days']});
-            }
-            var weekly = await dbHelper.getMembershipByName('Weekly');
-            if (weekly != null) {
-                await dbHelper.updateMembership({'id': weekly['id'], 'name': 'Weekly', 'price': newWeeklyFee, 'duration_days': weekly['duration_days']});
-            }
-            var visit = await dbHelper.getMembershipByName('Visit');
-            if (visit != null) {
-                await dbHelper.updateMembership({'id': visit['id'], 'name': 'Visit', 'price': newVisitFee, 'duration_days': visit['duration_days']});
-            }
-
-            loadGymData(); // Reload fees and potentially other data
-          },
-        );
-      },
-    );
-  }
+  // void editPricesDialog() { // This method is now replaced by ManageMembershipTypesScreen functionality
+  // }
 
   Future<void> exportToJson() async {
     // TODO: Implement export logic using SQLite data.

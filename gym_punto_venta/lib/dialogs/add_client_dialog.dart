@@ -83,9 +83,13 @@ class _AddClientDialogState extends State<AddClientDialog> {
 
 
     return AlertDialog(
-      backgroundColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
-      title: Text('Nuevo Cliente', style: TextStyle(color: widget.mode ? Colors.white : Colors.blue)),
+      backgroundColor: widget.mode ? Colors.grey[850] : Colors.white, // Consistent with other dialogs
+      title: DefaultTextStyle( // Prominent title
+        style: Theme.of(context).textTheme.titleLarge!.copyWith(color: widget.mode ? Colors.white : Colors.blue),
+        child: const Text('Nuevo Cliente'),
+      ),
       content: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0), // Consistent padding
         child: Form(
           key: _formKey,
           child: Column(
@@ -189,29 +193,27 @@ class _AddClientDialogState extends State<AddClientDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.redAccent)),
+          child: Text('Cancelar', style: TextStyle(color: widget.mode ? Colors.redAccent[100] : Colors.red)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.mode ? Colors.grey[700] : Colors.blue,
+            backgroundColor: widget.mode ? Colors.teal : Colors.blue, // Standardized button color
           ),
           onPressed: () {
             if (_formKey.currentState!.validate()) {
-              // startDate, endDate, isActive, currentMembershipPrice will be set in GymManagementFunctions
-              final partialClient = Client(
-                id: DateTime.now().millisecondsSinceEpoch.toString(), // Temporary ID, might be overwritten
+              final clientDataFromDialog = Client(
+                id: "TEMPORARY_ID_WILL_BE_REPLACED", // This will be replaced
                 name: _nameController.text,
                 email: _emailController.text,
                 phone: _phoneController.text,
                 membershipType: _selectedMembershipType!,
                 paymentStatus: _selectedPaymentStatus,
-                photo: _selectedPhotoPath, // Use actual selected path
-                // These will be properly set by GymManagementFunctions based on membershipType
-                startDate: DateTime.now(),
-                endDate: DateTime.now(),
-                isActive: true,
+                photo: _selectedPhotoPath,
+                startDate: DateTime.now(), // Placeholder, GMF will set final
+                endDate: DateTime.now(),   // Placeholder, GMF will set final
+                isActive: true,            // Placeholder, GMF will set final
               );
-              widget.onSave(partialClient);
+              widget.onSave(clientDataFromDialog);
               Navigator.of(context).pop();
             }
           },

@@ -113,21 +113,23 @@ class GymManagementScreenState extends State<GymManagementScreen> {
       appBar: AppBar(
         backgroundColor: _darkMode ? Colors.grey[850] : Colors.blue,
         foregroundColor: Colors.white,
-        leading: _functions.gymLogoPath != null && _functions.gymLogoPath!.isNotEmpty
-           ? Padding(
-               padding: const EdgeInsets.all(4.0), // Reduced padding
-               child: CircleAvatar( // Using CircleAvatar for a nicer look
-                 backgroundImage: FileImage(File(_functions.gymLogoPath!)),
-                 onBackgroundImageError: (exception, stackTrace) {
-                    print("Error loading AppBar logo: $exception");
-                    // Icon(Icons.business_center) will be shown by child if error
-                 },
-                 child: _functions.gymLogoPath == null || _functions.gymLogoPath!.isEmpty || _functions.gymLogoPath!.contains("Error")
-                        ? const Icon(Icons.business_center, color: Colors.white)
-                        : null, // Show icon only if path is bad or error occurred (already handled by onBackgroundImageError)
-               ),
-             )
-           : const Icon(Icons.business_center, color: Colors.white),
+        leading: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: CircleAvatar(
+            backgroundColor: _darkMode ? Colors.grey[750] : Colors.blue[700],
+            backgroundImage: (_functions.gymLogoPath != null && _functions.gymLogoPath!.isNotEmpty)
+                ? FileImage(File(_functions.gymLogoPath!))
+                : null,
+            onBackgroundImageError: (_functions.gymLogoPath != null && _functions.gymLogoPath!.isNotEmpty)
+                ? (exception, stackTrace) {
+                    print("Error loading AppBar logo: $exception. Path: ${_functions.gymLogoPath}");
+                  }
+                : null,
+            child: (_functions.gymLogoPath == null || _functions.gymLogoPath!.isEmpty)
+                ? const Icon(Icons.business_center, color: Colors.white)
+                : null,
+          ),
+        ),
         title: Text(_functions.gymName, style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           Padding( // Display License Status
@@ -155,29 +157,36 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   icon: const Icon(Icons.directions_walk),
                   label: const Text('Visita'),
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
-                  onPressed: () => _functions.addNewClientDialog(isVisit: true),
+                  onPressed: () async {
+                    await _functions.logVisitFeeAsIncome();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Visit fee logged as income.')),
+                      );
+                    }
+                  },
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.person_add),
                   label: const Text('Nuevo Cliente'),
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
-                  onPressed: () => _functions.addNewClientDialog(isVisit: false),
+                  onPressed: () => _functions.addNewClientDialog(), // Removed isVisit parameter
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text("Test Bio"),
-                  style: ElevatedButton.styleFrom(backgroundColor: _darkMode ? Colors.tealAccent[700] : Colors.teal, foregroundColor: Colors.white),
-                  onPressed: () async {
-                    String result = await _functions.testBiometricAuthentication();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(result), duration: const Duration(seconds: 3))
-                      );
-                    }
-                  },
-                ),
+                // const SizedBox(width: 8),
+                // ElevatedButton.icon(
+                //   icon: const Icon(Icons.fingerprint),
+                //   label: const Text("Test Bio"),
+                //   style: ElevatedButton.styleFrom(backgroundColor: _darkMode ? Colors.tealAccent[700] : Colors.teal, foregroundColor: Colors.white),
+                //   onPressed: () async {
+                //     String result = await _functions.testBiometricAuthentication();
+                //     if (mounted) {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         SnackBar(content: Text(result), duration: const Duration(seconds: 3))
+                //       );
+                //     }
+                //   },
+                // ),
               ],
             ),
             const SizedBox(height: 10), // Reduced space
