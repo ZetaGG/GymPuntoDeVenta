@@ -155,7 +155,14 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   icon: const Icon(Icons.directions_walk),
                   label: const Text('Visita'),
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
-                  onPressed: () => _functions.addNewClientDialog(isVisit: true),
+                  onPressed: () async {
+                    await _functions.logVisitFeeAsIncome();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Visit fee logged as income.')),
+                      );
+                    }
+                  },
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
@@ -164,20 +171,20 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100]),
                   onPressed: () => _functions.addNewClientDialog(isVisit: false),
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text("Test Bio"),
-                  style: ElevatedButton.styleFrom(backgroundColor: _darkMode ? Colors.tealAccent[700] : Colors.teal, foregroundColor: Colors.white),
-                  onPressed: () async {
-                    String result = await _functions.testBiometricAuthentication();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(result), duration: const Duration(seconds: 3))
-                      );
-                    }
-                  },
-                ),
+                // const SizedBox(width: 8), // Removed Test Bio button from here
+                // ElevatedButton.icon(
+                //   icon: const Icon(Icons.fingerprint),
+                //   label: const Text("Test Bio"),
+                //   style: ElevatedButton.styleFrom(backgroundColor: _darkMode ? Colors.tealAccent[700] : Colors.teal, foregroundColor: Colors.white),
+                //   onPressed: () async {
+                //     String result = await _functions.testBiometricAuthentication();
+                //     if (mounted) {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         SnackBar(content: Text(result), duration: const Duration(seconds: 3))
+                //       );
+                //     }
+                //   },
+                // ),
               ],
             ),
             const SizedBox(height: 10), // Reduced space

@@ -96,9 +96,13 @@ class _EditClientDialogState extends State<EditClientDialog> {
     final dropdownColor = widget.mode ? const Color.fromARGB(255, 59, 59, 59) : Colors.white;
 
     return AlertDialog(
-      backgroundColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
-      title: Text('Editar Cliente', style: TextStyle(color: widget.mode ? Colors.white : Colors.blue)),
+      backgroundColor: widget.mode ? Colors.grey[850] : Colors.white, // Consistent with other dialogs
+      title: DefaultTextStyle( // Prominent title
+        style: Theme.of(context).textTheme.titleLarge!.copyWith(color: widget.mode ? Colors.white : Colors.blue),
+        child: const Text('Editar Cliente'),
+      ),
       content: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0), // Consistent padding
         child: Form(
           key: _formKey,
           child: Column(
@@ -204,15 +208,15 @@ class _EditClientDialogState extends State<EditClientDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.redAccent)),
+          child: Text('Cancelar', style: TextStyle(color: widget.mode ? Colors.redAccent[100] : Colors.red)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.mode ? Colors.grey[700] : Colors.blue,
+            backgroundColor: widget.mode ? Colors.teal : Colors.blue, // Standardized button color
           ),
           onPressed: () {
             if (_formKey.currentState!.validate()) {
-              final updatedClient = widget.client; // Start with the existing client object
+              final updatedClient = widget.client;
               updatedClient.name = _nameController.text;
               updatedClient.email = _emailController.text;
               updatedClient.phone = _phoneController.text;

@@ -105,11 +105,15 @@ class _RenewClientDialogState extends State<RenewClientDialog> {
     final dropdownColor = widget.mode ? const Color.fromARGB(255, 59, 59, 59) : Colors.white;
 
     return AlertDialog(
-      backgroundColor: widget.mode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
-      title: Text('Renovar Membresía', style: TextStyle(color: widget.mode ? Colors.white : Colors.blue)),
+      backgroundColor: widget.mode ? Colors.grey[850] : Colors.white, // Consistent background
+      title: DefaultTextStyle( // Prominent title
+        style: Theme.of(context).textTheme.titleLarge!.copyWith(color: widget.mode ? Colors.white : Colors.blue),
+        child: const Text('Renovar Membresía'),
+      ),
       content: Form(
         key: _formKey,
-        child: SingleChildScrollView( // Added SingleChildScrollView
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0), // Consistent padding
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,13 +158,13 @@ class _RenewClientDialogState extends State<RenewClientDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.redAccent)),
+          child: Text('Cancelar', style: TextStyle(color: widget.mode ? Colors.redAccent[100] : Colors.red)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.mode ? Colors.grey[700] : Colors.blue,
+            backgroundColor: widget.mode ? Colors.teal : Colors.blue, // Standardized button color
           ),
-          onPressed: (_selectedMembershipType == null || _isLoadingTypes) ? null : () { // Disable if no type selected or loading
+          onPressed: (_selectedMembershipType == null || _isLoadingTypes) ? null : () {
             if (_formKey.currentState!.validate()) {
               widget.onRenew(widget.client, _selectedMembershipType!);
               Navigator.of(context).pop();
