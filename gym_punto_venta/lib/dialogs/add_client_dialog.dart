@@ -201,20 +201,19 @@ class _AddClientDialogState extends State<AddClientDialog> {
           ),
           onPressed: () {
             if (_formKey.currentState!.validate()) {
-              final partialClient = Client(
-                id: DateTime.now().millisecondsSinceEpoch.toString(), // Temporary ID, might be overwritten
+              final clientDataFromDialog = Client(
+                id: "TEMPORARY_ID_WILL_BE_REPLACED", // This will be replaced
                 name: _nameController.text,
                 email: _emailController.text,
                 phone: _phoneController.text,
                 membershipType: _selectedMembershipType!,
                 paymentStatus: _selectedPaymentStatus,
-                photo: _selectedPhotoPath, // Use actual selected path
-                // These will be properly set by GymManagementFunctions based on membershipType
-                startDate: DateTime.now(),
-                endDate: DateTime.now(),
-                isActive: true,
+                photo: _selectedPhotoPath,
+                startDate: DateTime.now(), // Placeholder, GMF will set final
+                endDate: DateTime.now(),   // Placeholder, GMF will set final
+                isActive: true,            // Placeholder, GMF will set final
               );
-              widget.onSave(partialClient);
+              widget.onSave(clientDataFromDialog);
               Navigator.of(context).pop();
             }
           },

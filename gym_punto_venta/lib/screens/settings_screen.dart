@@ -34,6 +34,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _darkModeEnabled = widget.functions.darkMode;
   }
 
+  Widget _buildSection(List<Widget> children) { // Defined _buildSection
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...children,
+        const Divider(height: 32, thickness: 1),
+      ],
+    );
+  }
+
   Future<void> _pickLogo() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
@@ -55,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: <Widget>[
-          Padding( // Added Padding for license status
+          Padding(
             padding: const EdgeInsets.symmetric(vertical: 10.0),
             child: Text(
               widget.functions.getLicenseDisplayStatus(),
@@ -131,20 +141,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: _darkModeEnabled ? Colors.white : Colors.black),
               decoration: InputDecoration(
                 labelText: 'Days until inactive deletion (e.g., 30)',
-              hintText: 'Enter number of days',
-              labelStyle: TextStyle(color: _darkModeEnabled ? Colors.white70 : Colors.black54),
-              hintStyle: TextStyle(color: _darkModeEnabled ? Colors.white38 : Colors.black38),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: _darkModeEnabled ? Colors.white54 : Colors.black38),
-              ),
+              // hintText: 'Enter number of days', // This line is duplicated
+              // labelStyle: TextStyle(color: _darkModeEnabled ? Colors.white70 : Colors.black54), // This line is duplicated
+              // hintStyle: TextStyle(color: _darkModeEnabled ? Colors.white38 : Colors.black38), // This line is duplicated
+              // enabledBorder: UnderlineInputBorder( // This line is duplicated
+              //   borderSide: BorderSide(color: _darkModeEnabled ? Colors.white54 : Colors.black38), // This line is duplicated
+              // ), // This line is duplicated
             ),
-                hintText: 'Enter number of days',
-                labelStyle: TextStyle(color: _darkModeEnabled ? Colors.white70 : Colors.black54),
-                hintStyle: TextStyle(color: _darkModeEnabled ? Colors.white38 : Colors.black38),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: _darkModeEnabled ? Colors.white54 : Colors.black38),
-                ),
-              ),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
@@ -176,10 +179,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
 
-          ElevatedButton( // Save All Settings Button
+          ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: _darkModeEnabled ? Colors.grey[700] : Colors.blue),
             child: const Text("Save All Settings", style: TextStyle(color: Colors.white)),
-            onPressed: () async { /* ... existing save logic ... */ },
+            onPressed: () async {
+              bool changesMade = false;
+              String feedbackMessage = "No changes to save.";
+
+              if (widget.functions.areFeaturesUnlocked()) {
+                // Save Gym Name
+                if (widget.functions.gymName != _gymNameController.text) {
+                  await widget.functions.saveGymName(_gymNameController.text);
+                  changesMade = true;
+                }
+                // Save Inactive Days Threshold
+                final String daysText = _inactiveDaysController.text;
+                final int? days = int.tryParse(daysText);
+                if (days != null && days > 0) {
+                  if (widget.functions.inactiveDaysThreshold != days) {
+                      await widget.functions.saveInactiveDaysThreshold(days);
+                      changesMade = true;
+                  }
+                } else if (daysText.isNotEmpty) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid value for inactive days. Not saved.")));
+                }
+                // Save Logo Path
+                if (widget.functions.gymLogoPath != _currentLogoPath) {
+                  await widget.functions.saveGymLogoPath(_currentLogoPath ?? '');
+                  changesMade = true;
+                }
+                if (changesMade) feedbackMessage = "Settings Saved!";
+              } else {
+                feedbackMessage = "Features locked. Only display settings can be changed by their controls.";
+              }
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(feedbackMessage)));
+              }
+            },
           ),
 
           _buildSection(<Widget>[ // Data Management Section
@@ -188,19 +225,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
              ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _darkModeEnabled ? Colors.orange[800] : Colors.orangeAccent),
               child: const Text("Run Inactive Client Cleanup Now", style: TextStyle(color: Colors.white)),
-              onPressed: widget.functions.areFeaturesUnlocked() ? () async { /* ... */ } : null,
+              onPressed: widget.functions.areFeaturesUnlocked() ? () async {
+                int count = await widget.functions.deleteInactiveClients();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$count inactive clients deleted.")));
+              } : null,
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _darkModeEnabled ? Colors.blueGrey[700] : Colors.blueGrey),
               child: const Text("Export Data (Placeholder)", style: TextStyle(color: Colors.white)),
-              onPressed: () { /* ... */ },
+              onPressed: () {
+                widget.functions.exportToJson();
+              },
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _darkModeEnabled ? Colors.blueGrey[700] : Colors.blueGrey),
               child: const Text("Import Data (Placeholder)", style: TextStyle(color: Colors.white)),
-              onPressed: () { /* ... */ },
+              onPressed: () {
+                widget.functions.importFromJson();
+              },
             ),
           ]),
 
@@ -212,13 +256,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: Icon(Icons.price_change_outlined, color: _darkModeEnabled ? Colors.white70 : Colors.black54),
               title: Text("Manage Membership Types", style: TextStyle(color: _darkModeEnabled ? Colors.white : Colors.black)),
               trailing: Icon(Icons.arrow_forward_ios, color: _darkModeEnabled ? Colors.white70 : Colors.black54),
-              onTap: () { /* ... */ },
+              onTap: () {
+                if (widget.functions.areFeaturesUnlocked()) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ManageMembershipTypesScreen(functions: widget.functions)),
+                  );
+                } else {
+                  if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Managing membership types is a premium feature.")));
+                  }
+                }
+              },
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: _darkModeEnabled ? Colors.cyan[700] : Colors.cyan),
               child: const Text("Add Manual Transaction", style: TextStyle(color: Colors.white)),
-              onPressed: () { /* ... */ },
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    return AddTransactionDialog(
+                      mode: _darkModeEnabled,
+                      onSave: (data, type) {
+                        if (type == TransactionType.income) {
+                          widget.functions.addManualIncome(data);
+                        } else {
+                          widget.functions.addManualExpense(data);
+                        }
+                      },
+                    );
+                  },
+                );
+              },
             ),
             const SizedBox(height: 10),
             ListTile(
@@ -226,7 +298,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               leading: Icon(Icons.insights, color: _darkModeEnabled ? Colors.white70 : Colors.black54),
               title: Text("View Financial Reports", style: TextStyle(color: _darkModeEnabled ? Colors.white : Colors.black)),
               trailing: Icon(Icons.arrow_forward_ios, color: _darkModeEnabled ? Colors.white70 : Colors.black54),
-              onTap: () { /* ... */ },
+              onTap: () {
+                if (widget.functions.areFeaturesUnlocked()) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => FinancialReportsScreen(functions: widget.functions)),
+                  );
+                } else {
+                   if (mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text("Financial reports are a premium feature.")));
+                   }
+                }
+              },
             ),
           ]),
 

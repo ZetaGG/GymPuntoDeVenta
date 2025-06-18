@@ -107,10 +107,9 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
         (_financialOverview['allExpenseTransactions']?.isEmpty ?? true) ) {
           return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text("No financial data for the selected period.", style: TextStyle(color: colorScheme.onSurfaceVariant))));
     }
-
-    if (totalIncome == 0.0 && totalExpenses == 0.0 && (_financialOverview['allIncomeTransactions']?.isEmpty ?? true) && (_financialOverview['allExpenseTransactions']?.isEmpty ?? true)) {
-        return SizedBox(height: 200, child: Center(child: Text("No financial data available yet.", style: TextStyle(color: colorScheme.onSurfaceVariant))));
-    }
+    // The second 'if' block is redundant because the first 'if' block already covers the case where all data is empty for the period.
+    // If the first condition is false, it means there's *some* data (even if totals are zero but transactions exist, or vice-versa),
+    // so the chart should attempt to render.
 
     return AspectRatio(
         aspectRatio: 1.6,
@@ -173,7 +172,7 @@ class _FinancialReportsScreenState extends State<FinancialReportsScreen> {
     final style = TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 10);
     // Show labels only at reasonable intervals
     if (value == 0 || value == meta.max || (value % (meta.max / 5).clamp(1.0, meta.max) == 0 && meta.max > 0) ) {
-         return SideTitleWidget(axisSide: meta.axisSide, space: 4, child: Text(_currencyFormatter.format(value).replaceAll(".00", ""), style: style));
+         return SideTitleWidget(axisSide: meta.axisSide, space: 4, child: Text(_currencyFormatter.format(value), style: style)); // Removed .replaceAll(".00", "")
     }
     return const SizedBox.shrink();
   }

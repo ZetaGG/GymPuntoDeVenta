@@ -2,20 +2,22 @@
 // import 'package:file_picker/file_picker.dart'; // Keep for FilePicker
 import 'package:flutter/material.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Need this for migration
-import 'dart:convert'; // Keep for potential future use with export/import
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:gym_punto_venta/models/clients.dart';
 import 'package:gym_punto_venta/dialogs/add_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/edit_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/renew_client_dialog.dart';
-import 'package:gym_punto_venta/dialogs/edit_prices_dialog.dart';
+// import 'package:gym_punto_venta/dialogs/edit_prices_dialog.dart'; // Removed import
 import 'package:gym_punto_venta/database/database_helper.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:device_info_plus/device_info_plus.dart'; // Import device_info_plus
-import 'dart:io'; // Import dart:io for Platform
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
+import 'package:uuid/uuid.dart'; // Added import for Uuid
 
 class GymManagementFunctions {
   final BuildContext context;
+  final Uuid _uuid = Uuid(); // Added Uuid instance
   bool darkMode; // Made non-final as it might be loaded from DB
   List<Client> _clients; // Made private and mutable
   final Function(List<Client>) updateClients;
@@ -94,7 +96,7 @@ class GymManagementFunctions {
             // Default membershipType to "Monthly" for migration
             // dbHelper.insertClient will look up its ID and price.
             Client migratedClient = Client(
-              id: oldClientMap['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(), // Ensure ID is string
+              id: oldClientMap['id']?.toString() ?? _uuid.v4(), // Use Uuid for new ID
               name: oldClientMap['name'] ?? 'Unknown Name',
               email: oldClientMap['email']?.toString(),
               phone: oldClientMap['phone']?.toString(),
@@ -243,6 +245,14 @@ class GymManagementFunctions {
     // For now, let's insert it so we can test retrieval later
     await dbHelper.insertIncome(incomeData);
     // TODO: Update overall balance if this type of income affects it.
+    // For now, let's add the income to the current balance.
+    double amount = incomeData['amount'] as double? ?? 0.0;
+    _balance += amount;
+    await dbHelper.updateSetting('current_balance', _balance.toString());
+    updateBalanceCallback(_balance);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Manual income of ${amount.toStringAsFixed(2)} added successfully.')),
+    );
   }
 
   Future<void> addManualExpense(Map<String, dynamic> expenseData) async {
@@ -251,6 +261,13 @@ class GymManagementFunctions {
     // For now, let's insert it so we can test retrieval later
     await dbHelper.insertExpense(expenseData);
     // TODO: Update overall balance.
+    double amount = expenseData['amount'] as double? ?? 0.0;
+    _balance -= amount;
+    await dbHelper.updateSetting('current_balance', _balance.toString());
+    updateBalanceCallback(_balance);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Manual expense of ${amount.toStringAsFixed(2)} added successfully.')),
+    );
   }
 
   Future<void> logVisitFeeAsIncome() async {
@@ -445,32 +462,17 @@ class GymManagementFunctions {
     return await dbHelper.getMembershipTypes();
   }
 
-  void addNewClientDialog({bool isVisit = false}) {
-    if (isVisit) {
-      // This case is now handled by PrincipalScreen directly calling logVisitFeeAsIncome
-      // For safety, if called, it could also log:
-      // logVisitFeeAsIncome();
-      // However, the primary "Visita" button now calls logVisitFeeAsIncome directly.
-      // This path might be redundant or could be used for a different type of quick add.
-      // For now, to avoid double logging if called from somewhere else by mistake:
-      print("addNewClientDialog called with isVisit=true. This flow might be deprecated. Use logVisitFeeAsIncome directly.");
-      // Optionally, still perform the balance update if _visitFee is a valid fallback.
-      // _balance += _visitFee;
-      // updateBalanceCallback(_balance);
-      // dbHelper.updateSetting('current_balance', _balance.toString());
-      return;
-    }
-
+  void addNewClientDialog() { // isVisit parameter removed
+    // The isVisit logic was previously removed/commented out as it's handled by PrincipalScreen's direct call
+    // to logVisitFeeAsIncome. This method is now solely for adding full new clients.
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AddClientDialog(
           mode: darkMode,
-          membershipTypesFuture: getMembershipTypesForDialog(), // Pass future here
-          onSave: (Client newClient) async {
-            // newClient here is partially populated by the dialog (name, email, phone, membershipType, paymentStatus, photo)
-            // We need to fetch membership details to set price, duration, startDate, endDate etc.
-            var membershipDetails = await dbHelper.getMembershipByName(newClient.membershipType);
+          membershipTypesFuture: getMembershipTypesForDialog(),
+          onSave: (Client clientDataFromDialog) async { // Renamed for clarity
+            var membershipDetails = await dbHelper.getMembershipByName(clientDataFromDialog.membershipType);
             if (membershipDetails == null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Error: Tipo de membresía no encontrado.')),
@@ -490,9 +492,25 @@ class GymManagementFunctions {
             // newClient.id should be generated if not provided by dialog, but UUID is typically client-side
             // newClient.photo is already set by dialog (placeholder for now)
 
-            // Show potential duplicate dialog
+            // Create the definitive Client object HERE with a new UUID
+            final Client newClient = Client(
+              id: _uuid.v4(), // Generate new UUID here
+              name: clientDataFromDialog.name,
+              email: clientDataFromDialog.email,
+              phone: clientDataFromDialog.phone,
+              membershipType: clientDataFromDialog.membershipType,
+              paymentStatus: clientDataFromDialog.paymentStatus,
+              photo: clientDataFromDialog.photo,
+              startDate: DateTime.now(),
+              endDate: DateTime.now().add(Duration(days: durationDays)),
+              isActive: true,
+              currentMembershipPrice: price,
+              // membershipTypeId will be set by dbHelper.insertClient
+            );
+
+            // Show potential duplicate dialog (using newClient with generated ID)
             List<Client> similarClients = await dbHelper.findClientsBySimilarity(
-                newClient.name, newClient.phone, newClient.email
+                newClient.name, newClient.phone, newClient.email // Pass newClient's data
             );
 
             if (similarClients.isNotEmpty) {
@@ -549,7 +567,7 @@ Are you sure you want to add this new client?'
     );
   }
 
-  void editClientDialog(Client client) { // darkMode parameter removed
+  void editClientDialog(Client client) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -583,7 +601,7 @@ Are you sure you want to add this new client?'
     );
   }
 
-  void renewClientDialog(Client client) { // mode parameter (darkMode) removed
+  void renewClientDialog(Client client) {
      showDialog(
       context: context,
       builder: (BuildContext context) {

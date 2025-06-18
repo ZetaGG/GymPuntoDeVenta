@@ -119,7 +119,7 @@ class _AddTransactionDialogState extends State<AddTransactionDialog> {
                 style: textStyle,
                 decoration: inputDecoration.copyWith(labelText: 'Amount'),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))], // Corrected Regex
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Please enter an amount';
                   if (double.tryParse(value) == null) return 'Invalid amount';
