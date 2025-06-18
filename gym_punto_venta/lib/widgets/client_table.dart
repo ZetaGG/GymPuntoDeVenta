@@ -1,20 +1,24 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gym_punto_venta/models/clients.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 
 class ClientTable extends StatelessWidget {
   final List<Client> clients;
   final Function(Client) onEdit;
   final Function(Client) onRenew;
   final Function(Client) onDelete;
-  bool mode;
+  final Function(Client) onRegisterVisit; // New callback
+  final bool mode;
 
-   ClientTable({
+   const ClientTable({ // Changed to const constructor
     Key? key,
     required this.mode,
     required this.clients,
     required this.onEdit,
     required this.onRenew,
     required this.onDelete,
+    required this.onRegisterVisit, // New callback added
   }) : super(key: key);
 
   @override
@@ -22,56 +26,73 @@ class ClientTable extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Nombre', style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Email' , style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Teléfono' , style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Fecha Inicio' , style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Fecha Vencimiento' , style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Estado' , style: TextStyle(color: Colors.grey),)),
-          DataColumn(label: Text('Acciones' , style: TextStyle(color: Colors.grey),)),
+        columns: [
+          DataColumn(label: Text('Photo', style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Nombre', style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Email' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Teléfono' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Membership', style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Payment', style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Fecha Inicio' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Fecha Vencimiento' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Last Visit', style: TextStyle(color: mode ? Colors.white70 : Colors.black54))), // New Column
+          DataColumn(label: Text('Estado' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
+          DataColumn(label: Text('Acciones' , style: TextStyle(color: mode ? Colors.white70 : Colors.black54))),
         ],
         rows: clients.map((client) {
+          final cellTextStyle = TextStyle(color: mode ? Colors.white : Colors.black87);
           return DataRow(
             cells: [
-              DataCell(Text(client.name, style: TextStyle(color: Colors.grey),)),
-              DataCell(Text(client.email, style: TextStyle(color: Colors.grey),)),
-              DataCell(Text(client.phone, style: TextStyle(color: Colors.grey),)),
-              DataCell(Text(client.startDate.toString().split(' ')[0], style: TextStyle(color: Colors.grey),)),
-              DataCell(Text(client.endDate.toString().split(' ')[0], style: TextStyle(color: Colors.grey),)),
+              DataCell(
+                client.photo != null && client.photo!.isNotEmpty
+                    ? CircleAvatar(
+                        radius: 20,
+                        backgroundImage: FileImage(File(client.photo!)),
+                        onBackgroundImageError: (exception, stackTrace) {
+                          print('Error loading image from path: ${client.photo}, Error: $exception');
+                        },
+                      )
+                    : Icon(Icons.person, color: mode ? Colors.white54 : Colors.black54, size: 24),
+              ),
+              DataCell(Text(client.name, style: cellTextStyle)),
+              DataCell(Text(client.email ?? '', style: cellTextStyle)),
+              DataCell(Text(client.phone ?? '', style: cellTextStyle)),
+              DataCell(Text(client.membershipType, style: cellTextStyle)),
+              DataCell(Text(client.paymentStatus, style: cellTextStyle)),
+              DataCell(Text(client.startDate.toString().split(' ')[0], style: cellTextStyle)),
+              DataCell(Text(client.endDate.toString().split(' ')[0], style: cellTextStyle)),
+              DataCell( // New Cell for Last Visit
+                Text(
+                  client.lastVisitDate != null
+                      ? DateFormat('yyyy-MM-dd HH:mm').format(client.lastVisitDate!)
+                      : 'N/A',
+                  style: cellTextStyle,
+                ),
+              ),
               _buildStatusCell(client),
               DataCell(
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ElevatedButton(
+                    IconButton( // New "Register Visit" button
+                      icon: Icon(Icons.check_circle_outline, color: mode ? Colors.greenAccent[400] : Colors.green),
+                      tooltip: 'Registrar Visita',
+                      onPressed: () => onRegisterVisit(client),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.edit, color: mode ? Colors.orangeAccent : Colors.orange),
+                      tooltip: 'Editar Cliente',
                       onPressed: () => onEdit(client),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                      child: const Text('Editar'),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
+                    IconButton(
+                      icon: Icon(Icons.autorenew, color: mode ? Colors.blueAccent : Colors.blue),
+                      tooltip: 'Renovar Membresía',
                       onPressed: () => onRenew(client),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                      child: const Text('Renovar'),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
+                    IconButton(
+                      icon: Icon(Icons.delete, color: mode ? Colors.redAccent : Colors.red),
+                      tooltip: 'Eliminar Cliente',
                       onPressed: () => onDelete(client),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                      child: const Text('Eliminar'),
                     ),
                   ],
                 ),

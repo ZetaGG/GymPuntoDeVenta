@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app requires access to the photo library to select client photos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires access to the camera to take client photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app requires access to the microphone if taking videos with sound.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>This app uses Face ID / Touch ID to authenticate users for quick check-in.</string>
 </dict>
 </plist>
