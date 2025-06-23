@@ -6,12 +6,14 @@ class ProductList extends StatelessWidget {
   final List<Product> products;
   final bool darkMode;
   final Function(Product) onSellProduct; // Callback para vender un producto específico
+  final Function(Product) onEditStockProduct; // Callback para editar stock de un producto específico
 
   const ProductList({
     Key? key,
     required this.products,
     required this.darkMode,
     required this.onSellProduct,
+    required this.onEditStockProduct, // Añadir el nuevo callback
   }) : super(key: key);
 
   @override
@@ -40,7 +42,8 @@ class ProductList extends StatelessWidget {
         return ProductCard(
           product: product,
           darkMode: darkMode,
-          onSell: () => onSellProduct(product), // Pasa el producto específico al callback
+          onSell: () => onSellProduct(product),
+          onEditStock: () => onEditStockProduct(product), // Pasa el producto específico al nuevo callback
         );
       },
     );

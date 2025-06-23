@@ -5,12 +5,14 @@ class ProductCard extends StatelessWidget {
   final Product product;
   final bool darkMode;
   final VoidCallback onSell; // Callback para cuando se presiona el botón de vender
+  final VoidCallback onEditStock; // Callback para editar el stock
 
   const ProductCard({
     Key? key,
     required this.product,
     required this.darkMode,
     required this.onSell,
+    required this.onEditStock, // Añadir el nuevo callback
   }) : super(key: key);
 
   @override
@@ -74,21 +76,29 @@ class ProductCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12.0),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                icon: Icon(product.stock > 0 ? Icons.shopping_cart_checkout : Icons.remove_shopping_cart_outlined, size: 18),
-                label: Text(product.stock > 0 ? 'Vender Unidad' : 'Sin Stock'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: product.stock > 0 ? enabledButtonColor : disabledButtonColor,
-                  foregroundColor: product.stock > 0 ? enabledButtonTextColor : subtextColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit_note, color: darkMode ? Colors.blue[200] : Colors.blue[700]),
+                  tooltip: 'Editar Stock',
+                  onPressed: onEditStock,
                 ),
-                onPressed: product.stock > 0 ? onSell : null, // Deshabilita si no hay stock
-              ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: Icon(product.stock > 0 ? Icons.shopping_cart_checkout : Icons.remove_shopping_cart_outlined, size: 18),
+                  label: Text(product.stock > 0 ? 'Vender' : 'Sin Stock'), // Texto más corto para el botón
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: product.stock > 0 ? enabledButtonColor : disabledButtonColor,
+                    foregroundColor: product.stock > 0 ? enabledButtonTextColor : subtextColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  ),
+                  onPressed: product.stock > 0 ? onSell : null, // Deshabilita si no hay stock
+                ),
+              ],
             ),
           ],
         ),
