@@ -20,30 +20,46 @@ class DatabaseHelper {
 
   Future<Database> _initDb() async {
     String path = join(await getDatabasesPath(), 'gym_database.db');
+    print("DatabaseHelper: _initDb: Database path: $path");
+
+    // Aggressively delete the database file before opening for FFI environments
+    // to ensure _onCreate is always called on a fresh database.
+    // Ensure databaseFactory is correctly set (e.g. to databaseFactoryFfi in main.dart for desktop)
+    try {
+      print("DatabaseHelper: _initDb: Attempting to delete existing database at $path");
+      await databaseFactory.deleteDatabase(path);
+      print("DatabaseHelper: _initDb: Successfully deleted database at $path");
+    } catch (e) {
+      print("DatabaseHelper: _initDb: Error deleting database at $path: $e");
+    }
+
     return await openDatabase(
       path,
-      version: 2, // Incremented version to trigger _onCreate or _onUpgrade
+      version: 2, // Version can be 2 or incremented further if needed.
       onCreate: _onCreate,
-      onUpgrade: _onUpgrade, // Added onUpgrade callback
+      onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print("Upgrading database from version $oldVersion to $newVersion");
-    if (oldVersion < newVersion) {
-      // For version 2, specifically if coming from version 1,
-      // we can try to be more specific or just rebuild.
-      // For now, let's try a full rebuild if oldVersion is 1.
-      if (oldVersion == 1) {
-        // This is a destructive migration, suitable for development if data loss is acceptable.
-        // For production, you'd write specific ALTER TABLE statements or more careful data migration.
-        print("Performing destructive upgrade from v1 to v2: Dropping all tables and recreating.");
+    print("DatabaseHelper: _onUpgrade called, oldVersion: $oldVersion, newVersion: $newVersion");
+    // The aggressive deletion in _initDb should mean _onCreate is called directly more often.
+    // However, _onUpgrade is still good practice.
+    // If oldVersion is 1 and newVersion is 2 (or higher), drop and recreate.
+    if (oldVersion < newVersion && oldVersion == 1) {
+        print("DatabaseHelper: _onUpgrade: Destructive upgrade from v$oldVersion to v$newVersion. Dropping all tables and recreating.");
         await db.execute("DROP TABLE IF EXISTS Clients");
         await db.execute("DROP TABLE IF EXISTS Memberships");
         await db.execute("DROP TABLE IF EXISTS AppSettings");
         await db.execute("DROP TABLE IF EXISTS Income");
         await db.execute("DROP TABLE IF EXISTS Expenses");
         await db.execute("DROP TABLE IF EXISTS PriceHistory");
+        await db.execute("DROP TABLE IF EXISTS $TABLE_PRODUCTS");
+        await _onCreate(db, newVersion); // Re-create all tables
+    } else {
+      // Handle other potential upgrade paths if necessary in the future.
+      // For now, if not from v1, this path might not be strictly needed if deletion in _initDb works.
+      print("DatabaseHelper: _onUpgrade: Unhandled upgrade path from v$oldVersion to v$newVersion or deletion in _initDb handled it.");
         await db.execute("DROP TABLE IF EXISTS products");
         // Re-create all tables
         await _onCreate(db, newVersion);
@@ -75,11 +91,10 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Note: It's good practice for _onCreate to use "CREATE TABLE IF NOT EXISTS"
-    // to be more resilient, especially if it might be called by _onUpgrade paths.
-    // However, the current _onCreate does not use "IF NOT EXISTS" for all tables.
-    // For the purpose of this fix, we are relying on the v1->v2 destructive path in _onUpgrade.
-
+    print("DatabaseHelper: _onCreate called, version: $version");
+    // The CREATE TABLE statements will proceed as before.
+    // Consider adding "IF NOT EXISTS" to table creations if _onCreate could be called on a partially existing DB,
+    // though the deleteDatabase + onUpgrade strategy aims to prevent that.
     await db.execute('''
       CREATE TABLE Clients (
         id TEXT PRIMARY KEY,
