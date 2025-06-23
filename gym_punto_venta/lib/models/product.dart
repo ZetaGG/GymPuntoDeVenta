@@ -32,24 +32,24 @@ class Product {
     );
   }
 
-  // Opcional: Métodos toJson y fromJson si planeamos persistencia de datos más adelante
-  // Map<String, dynamic> toJson() {
-  //   return {
-  //     'id': id,
-  //     'name': name,
-  //     'category': category,
-  //     'price': price,
-  //     'stock': stock,
-  //   };
-  // }
+  // Métodos para la persistencia con sqflite
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'price': price,
+      'stock': stock,
+    };
+  }
 
-  // factory Product.fromJson(Map<String, dynamic> json) {
-  //   return Product(
-  //     id: json['id'] as String,
-  //     name: json['name'] as String,
-  //     category: json['category'] as String,
-  //     price: json['price'] as double,
-  //     stock: json['stock'] as int,
-  //   );
-  // }
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      category: map['category'] as String,
+      price: map['price'] as double,
+      stock: map['stock'] as int,
+    );
+  }
 }
