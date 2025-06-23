@@ -5,7 +5,6 @@ import '../models/clients.dart'; // Added import for Client model
 import '../models/product.dart'; // Added import for Product model
 
 class DatabaseHelper {
-  static const String TABLE_PRODUCTS = 'products'; // Nombre de la tabla de productos
 
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
@@ -45,7 +44,7 @@ class DatabaseHelper {
         await db.execute("DROP TABLE IF EXISTS Income");
         await db.execute("DROP TABLE IF EXISTS Expenses");
         await db.execute("DROP TABLE IF EXISTS PriceHistory");
-        await db.execute("DROP TABLE IF EXISTS $TABLE_PRODUCTS");
+        await db.execute("DROP TABLE IF EXISTS products");
         // Re-create all tables
         await _onCreate(db, newVersion);
       } else {
@@ -172,7 +171,7 @@ class DatabaseHelper {
 
     // Crear tabla de Productos
     await db.execute('''
-      CREATE TABLE $TABLE_PRODUCTS (
+      CREATE TABLE products (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         category TEXT,
@@ -180,10 +179,10 @@ class DatabaseHelper {
         stock INTEGER NOT NULL
       )
     ''');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)'); // Added index for category
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON products(name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON products(category)'); // Added index for category
 
-    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, $TABLE_PRODUCTS, and Indexes!");
+    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, products, and Indexes!");
   }
 
   // Client CRUD Methods
@@ -413,13 +412,13 @@ class DatabaseHelper {
   // Product CRUD Methods
   Future<void> insertProduct(Product product) async {
     final db = await database;
-    await db.insert(TABLE_PRODUCTS, product.toJson(), // Changed to toJson
+    await db.insert('products', product.toJson(), // Changed to toJson
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<Product>> getAllProducts() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(TABLE_PRODUCTS, orderBy: 'name ASC');
+    final List<Map<String, dynamic>> maps = await db.query('products', orderBy: 'name ASC');
     return List.generate(maps.length, (i) {
       return Product.fromJson(maps[i]); // Changed to fromJson
     });
@@ -428,7 +427,7 @@ class DatabaseHelper {
   Future<Product?> getProductById(String id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
-      TABLE_PRODUCTS,
+      'products',
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -441,7 +440,7 @@ class DatabaseHelper {
   Future<void> updateProduct(Product product) async {
     final db = await database;
     await db.update(
-      TABLE_PRODUCTS,
+      'products',
       product.toJson(), // Changed to toJson
       where: 'id = ?',
       whereArgs: [product.id],
@@ -451,7 +450,7 @@ class DatabaseHelper {
   Future<void> deleteProduct(String id) async {
     final db = await database;
     await db.delete(
-      TABLE_PRODUCTS,
+      'products',
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -460,7 +459,7 @@ class DatabaseHelper {
   Future<void> updateProductStock(String id, int newStock) async {
     final db = await database;
     await db.update(
-      TABLE_PRODUCTS,
+      'products',
       {'stock': newStock},
       where: 'id = ?',
       whereArgs: [id],
