@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:gym_punto_venta/widgets/statscard.dart';
 import 'package:gym_punto_venta/widgets/filter_button.dart';
 import 'package:gym_punto_venta/widgets/client_table.dart';
-import 'package:gym_punto_venta/widgets/balane_view.dart';
+// import 'package:gym_punto_venta/widgets/balane_view.dart'; // Eliminado: ya no se usa
 import 'package:gym_punto_venta/widgets/clients_stas_view.dart';
 import 'package:gym_punto_venta/widgets/search_bar.dart' as custom;
 // import 'package:gym_punto_venta/widgets/settins_model.dart'; // Removed
 import 'package:gym_punto_venta/screens/settings_screen.dart'; // Added
+import 'package:gym_punto_venta/screens/product_registration_screen.dart'; // Added for product registration
 import '../functions/funtions.dart';
 import '../models/clients.dart';
 import 'dart:io'; // For File object in AppBar logo
@@ -24,7 +25,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   List<Client> _filteredClients = [];
   String _currentFilter = 'Todos';
 
-  bool _showBalanceView = false;
+  // bool _showBalanceView = false; // Eliminado
   bool _darkMode = false;
 
   late GymManagementFunctions _functions;
@@ -137,7 +138,20 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             child: Text(_functions.getLicenseDisplayStatus(), style: const TextStyle(fontSize: 12, color: Colors.white)),
           ),
           IconButton(
+            icon: const Icon(Icons.shopping_cart, color: Colors.white),
+            tooltip: 'Vender Producto',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProductRegistrationScreen(darkMode: _darkMode),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(_darkMode ? Icons.light_mode : Icons.dark_mode, color: Colors.white),
+            tooltip: _darkMode ? 'Modo Claro' : 'Modo Oscuro',
             onPressed: () {
               _functions.updateDarkMode(!_darkMode);
             },
@@ -190,29 +204,30 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               ],
             ),
             const SizedBox(height: 10), // Reduced space
-            SwitchListTile(
-              inactiveTrackColor: _darkMode ? Colors.grey[800] : Colors.white,
-              inactiveThumbColor: _darkMode ? Colors.white : Colors.grey,
-              title: Text(
-                'Mostrar Balance',
-                style: TextStyle(color: _darkMode ? Colors.white : Colors.black),
-              ),
-              value: _showBalanceView,
-              activeColor: Colors.blue,
-              onChanged: (value) {
-                if (mounted) {
-                  setState(() {
-                    _showBalanceView = value;
-                  });
-                }
-              },
-            ),
-            if (_showBalanceView)
-              // Use getter for balance from _functions
-              BalanceView(darkMode: _darkMode, balance: _functions.balance, functions: _functions)
-            else
-              // Use getter for clients from _functions
-              ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays),
+            // SwitchListTile(
+            //   inactiveTrackColor: _darkMode ? Colors.grey[800] : Colors.white,
+            //   inactiveThumbColor: _darkMode ? Colors.white : Colors.grey,
+            //   title: Text(
+            //     'Mostrar Balance',
+            //     style: TextStyle(color: _darkMode ? Colors.white : Colors.black),
+            //   ),
+            //   value: _showBalanceView,
+            //   activeColor: Colors.blue,
+            //   onChanged: (value) {
+            //     if (mounted) {
+            //       setState(() {
+            //         _showBalanceView = value;
+            //       });
+            //     }
+            //   },
+            // ),
+            // if (_showBalanceView)
+            //   // Use getter for balance from _functions
+            //   BalanceView(darkMode: _darkMode, balance: _functions.balance, functions: _functions)
+            // else
+            // Use getter for clients from _functions
+            // Siempre mostramos ClientStatsView ahora
+            ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays),
             const SizedBox(height: 20),
             custom.SearchBar(
               searchController: _searchController,
