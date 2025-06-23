@@ -31,6 +31,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   // bool _showBalanceView = false; // Eliminado
   bool _darkMode = false;
   List<Product> _products = []; // Lista para almacenar productos en memoria
+  bool _showStoreView = false; // Estado para alternar entre vista de Clientes y Tienda
 
   late GymManagementFunctions _functions;
   // Key for Scaffold to show SnackBars from anywhere if needed, or pass context.
@@ -198,6 +199,17 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.store, color: Colors.white),
+            tooltip: 'Ver Tienda/Clientes',
+            onPressed: () {
+              if (mounted) {
+                setState(() {
+                  _showStoreView = !_showStoreView;
+                });
+              }
+            },
+          ),
+          IconButton(
             icon: Icon(_darkMode ? Icons.light_mode : Icons.dark_mode, color: Colors.white),
             tooltip: _darkMode ? 'Modo Claro' : 'Modo Oscuro',
             onPressed: () {
@@ -252,95 +264,91 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               ],
             ),
             const SizedBox(height: 10), // Reduced space
-            // SwitchListTile(
-            //   inactiveTrackColor: _darkMode ? Colors.grey[800] : Colors.white,
-            //   inactiveThumbColor: _darkMode ? Colors.white : Colors.grey,
-            //   title: Text(
-            //     'Mostrar Balance',
-            //     style: TextStyle(color: _darkMode ? Colors.white : Colors.black),
-            //   ),
-            //   value: _showBalanceView,
-            //   activeColor: Colors.blue,
-            //   onChanged: (value) {
-            //     if (mounted) {
-            //       setState(() {
-            //         _showBalanceView = value;
-            //       });
-            //     }
-            //   },
-            // ),
-            // if (_showBalanceView)
-            //   // Use getter for balance from _functions
-            //   BalanceView(darkMode: _darkMode, balance: _functions.balance, functions: _functions)
-            // else
-            // Use getter for clients from _functions
-            // Siempre mostramos ClientStatsView ahora
-            // ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays), // Reemplazado
-            // const SizedBox(height: 20), // Reemplazado
-            SalesSummary(
-              products: _products,
-              darkMode: _darkMode,
-            ),
-            Expanded(
-              child: ProductList(
+            // El SwitchListTile y BalanceView permanecen eliminados.
+
+            // Lógica condicional para mostrar la vista de Clientes o la Tienda
+            if (_showStoreView) ...[
+              // --- VISTA DE TIENDA ---
+              SalesSummary(
                 products: _products,
                 darkMode: _darkMode,
-                onSellProduct: _sellProduct,
+              ),
+              Expanded(
+                child: ProductList(
+                  products: _products,
+                  darkMode: _darkMode,
+                  onSellProduct: _sellProduct,
+                ),
+              ),
+            ] else ...[
+              // --- VISTA DE CLIENTES (POR DEFECTO) ---
+              ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays),
+              const SizedBox(height: 20),
+              custom.SearchBar(
+                searchController: _searchController,
+                clients: _clients,
+                onSearch: (value) {
+                  setState(() {
+                    _filteredClients = _clients.where((client) =>
+                        client.name.toLowerCase().contains(value.toLowerCase()) ||
+                        (client.email?.toLowerCase() ?? '').contains(value.toLowerCase()) ||
+                        (client.phone?.toLowerCase() ?? '').contains(value.toLowerCase())
+                    ).toList();
+                  });
+                },
+                darkMode: _darkMode,
+                currentFilter: _currentFilter,
+                applyFilter: _applyFilter,
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: ClientTable(
+                  mode: _darkMode,
+                  clients: _filteredClients,
+                onEdit: _functions.editClientDialog,
+                onRenew: (client) => _functions.renewClientDialog(client, context),
+                onDelete: (client) async {
+                  await _functions.deleteClient(client);
+                },
+                onRegisterVisit: (client) async {
+                  await _functions.registerClientVisit(client);
+                },
               ),
             ),
-            // La SearchBar y ClientTable se abordarán a continuación.
-            // Por ahora, mantenemos el custom.SearchBar para evitar errores de diff grandes.
-            // const SizedBox(height: 20), // Este SizedBox es el que estaba ANTES de SearchBar. Comentado/Eliminado.
-            // custom.SearchBar( // Comentado ya que la UI principal es ahora para productos
-            //   searchController: _searchController,
-            //   clients: _clients,
-            //   onSearch: (value) {
-            //     setState(() {
-            //       _filteredClients = _clients.where((client) =>
-            //           client.name.toLowerCase().contains(value.toLowerCase()) ||
-            //           (client.email?.toLowerCase() ?? '').contains(value.toLowerCase()) ||
-            //           (client.phone?.toLowerCase() ?? '').contains(value.toLowerCase())
-            //       ).toList();
-            //     });
-            //   },
-            //   darkMode: _darkMode,
-            //   currentFilter: _currentFilter,
-            //   applyFilter: _applyFilter,
-            // ),
-            // const SizedBox(height: 20), // Comentado
-            // Expanded( // ClientTable comentada ya que la UI principal es para productos
-            //   child: ClientTable(
-            //     mode: _darkMode,
-            //     clients: _filteredClients,
-            //     onEdit: _functions.editClientDialog,
-            //     onRenew: (client) => _functions.renewClientDialog(client, context),
-            //     onDelete: (client) async {
-            //       await _functions.deleteClient(client);
-            //     },
-            //     onRegisterVisit: (client) async {
-            //       await _functions.registerClientVisit(client);
-            //     },
-            //   ),
-            // ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _darkMode ? Colors.grey[700] : Colors.blue,
+        backgroundColor: _darkMode ? Colors.grey[700] : (_showStoreView ? Colors.teal : Colors.blue),
         foregroundColor: Colors.white,
+        tooltip: _showStoreView ? 'Agregar Producto' : 'Configuración',
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => SettingsScreen(functions: _functions)),
-          ).then((_) {
-            if (mounted) { // Rebuild to reflect potential changes in gymName, logo, or darkMode
-              setState(() {
-                 _darkMode = _functions.darkMode; // ensure darkMode is synced back
-              });
-            }
-          });
+          if (_showStoreView) {
+            // Acción para la vista de Tienda: Navegar a ProductRegistrationScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProductRegistrationScreen(
+                  darkMode: _darkMode,
+                  onProductSaved: _addProduct,
+                ),
+              ),
+            );
+          } else {
+            // Acción para la vista de Clientes: Navegar a SettingsScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => SettingsScreen(functions: _functions)),
+            ).then((_) {
+              if (mounted) { // Rebuild to reflect potential changes in gymName, logo, or darkMode
+                setState(() {
+                   _darkMode = _functions.darkMode; // ensure darkMode is synced back
+                });
+              }
+            });
+          }
         },
-        child: const Icon(Icons.settings),
+        child: Icon(_showStoreView ? Icons.add_shopping_cart : Icons.settings),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
