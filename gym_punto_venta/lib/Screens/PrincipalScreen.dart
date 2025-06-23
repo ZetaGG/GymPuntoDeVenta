@@ -207,21 +207,6 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             child: Text(_functions.getLicenseDisplayStatus(), style: const TextStyle(fontSize: 12, color: Colors.white)),
           ),
           IconButton(
-            icon: const Icon(Icons.shopping_cart, color: Colors.white),
-            tooltip: 'Vender Producto',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ProductRegistrationScreen(
-                    darkMode: _darkMode,
-                    onProductSaved: _addProduct, // Pasar el callback
-                  ),
-                ),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.store, color: Colors.white),
             tooltip: 'Ver Tienda/Clientes',
             onPressed: () {
