@@ -38,6 +38,11 @@ class GymManagementFunctions {
   String? gymLogoPath;
   int inactiveDaysThreshold = 30;
 
+  // Product related properties
+  List<Product> _products = [];
+  final Function(List<Product>)? updateProductsCallback;
+
+
   // Trial/License variables
   DateTime? installationDate;
   String licenseStatus = "Uninitialized";
@@ -54,9 +59,13 @@ class GymManagementFunctions {
     required this.updateBalanceCallback,
     required this.applyFilter,
     required this.updateDarkModeCallback,
+    this.updateProductsCallback, // Added
   }) : _clients = initialClients, _balance = 0.0 {
     loadGymData();
   }
+
+  // Getter for products
+  List<Product> get products => _products;
 
   Future<void> migrateOldDataToSqliteIfNeeded() async {
     try {
@@ -182,6 +191,22 @@ class GymManagementFunctions {
     int deletedCount = await deleteInactiveClients();
     if (deletedCount > 0) {
       print("$deletedCount inactive clients were automatically deleted during startup.");
+    }
+
+    // Load products
+    await loadProducts();
+  }
+
+  Future<void> loadProducts() async {
+    try {
+      final productsFromDb = await dbHelper.getAllProducts();
+      _products = productsFromDb;
+      if (updateProductsCallback != null) {
+        updateProductsCallback!(_products);
+      }
+    } catch (e) {
+      print('Error loading products: $e');
+      // Optionally, show an error message to the user via a callback or state management
     }
   }
 
@@ -669,21 +694,82 @@ void renewClientDialog(Client client, BuildContext mainContext) {
 
   // --- Product Database Operations ---
 
-  Future<List<Product>> loadProductsFromDB() async {
-    return await dbHelper.getAllProducts();
+  // Method to add a product
+  Future<void> addProduct(Product product) async {
+    try {
+      await dbHelper.insertProduct(product);
+      _products.add(product);
+      if (updateProductsCallback != null) {
+        updateProductsCallback!(List.from(_products));
+      }
+    } catch (e) {
+      print('Error adding product: $e');
+      // Consider showing an error message to the user
+    }
   }
 
-  Future<void> saveNewProductToDB(Product product) async {
-    await dbHelper.insertProduct(product);
-    // Podríamos querer actualizar alguna lista en memoria aquí o depender de que PrincipalScreen lo haga.
-    // Por ahora, solo guardamos. La carga se hará en initState de PrincipalScreen.
+  // Method to update a product
+  Future<void> updateProduct(Product product) async {
+    try {
+      await dbHelper.updateProduct(product);
+      final index = _products.indexWhere((p) => p.id == product.id);
+      if (index != -1) {
+        _products[index] = product;
+        if (updateProductsCallback != null) {
+          updateProductsCallback!(List.from(_products));
+        }
+      }
+    } catch (e) {
+      print('Error updating product: $e');
+      // Consider showing an error message to the user
+    }
   }
 
-  Future<void> updateProductInDB(Product product) async {
-    await dbHelper.updateProduct(product);
+  // Method to delete a product
+  Future<void> deleteProduct(String id) async {
+    try {
+      await dbHelper.deleteProduct(id);
+      _products.removeWhere((p) => p.id == id);
+      if (updateProductsCallback != null) {
+        updateProductsCallback!(List.from(_products));
+      }
+    } catch (e) {
+      print('Error deleting product: $e');
+      // Consider showing an error message to the user
+    }
   }
 
-  Future<void> deleteProductFromDB(String id) async {
-    await dbHelper.deleteProduct(id);
+  // Method to update product stock
+  Future<void> updateProductStock(String id, int newStock) async {
+    try {
+      await dbHelper.updateProductStock(id, newStock);
+      final index = _products.indexWhere((p) => p.id == id);
+      if (index != -1) {
+        _products[index] = _products[index].copyWith(stock: newStock);
+        if (updateProductsCallback != null) {
+          updateProductsCallback!(List.from(_products));
+        }
+      }
+    } catch (e) {
+      print('Error updating product stock: $e');
+      // Consider showing an error message to the user
+    }
   }
+
+  // DEPRECATED METHODS - Kept for reference during refactoring if needed, can be removed later.
+  // Future<List<Product>> loadProductsFromDB() async {
+  //   return await dbHelper.getAllProducts();
+  // }
+
+  // Future<void> saveNewProductToDB(Product product) async {
+  //   await dbHelper.insertProduct(product);
+  // }
+
+  // Future<void> updateProductInDB(Product product) async {
+  //   await dbHelper.updateProduct(product);
+  // }
+
+  // Future<void> deleteProductFromDB(String id) async {
+  //   await dbHelper.deleteProduct(id);
+  // }
 }

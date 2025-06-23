@@ -5,11 +5,13 @@ import 'package:gym_punto_venta/models/product.dart'; // Importar el modelo Prod
 class ProductRegistrationScreen extends StatefulWidget {
   final bool darkMode;
   final Function(Product) onProductSaved; // Callback para guardar el producto
+  final Product? initialProduct; // Para editar un producto existente
 
   const ProductRegistrationScreen({
     Key? key,
     required this.darkMode,
     required this.onProductSaved,
+    this.initialProduct, // Nuevo parámetro opcional
   }) : super(key: key);
 
   @override
@@ -22,6 +24,17 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
   final _categoryController = TextEditingController();
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialProduct != null) {
+      _nameController.text = widget.initialProduct!.name;
+      _categoryController.text = widget.initialProduct!.category;
+      _priceController.text = widget.initialProduct!.price.toString();
+      _stockController.text = widget.initialProduct!.stock.toString();
+    }
+  }
 
   @override
   void dispose() {
@@ -39,28 +52,24 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
       double price = double.tryParse(_priceController.text) ?? 0.0;
       int stock = int.tryParse(_stockController.text) ?? 0;
 
-      final newProduct = Product(
+      final product = Product(
+        id: widget.initialProduct?.id, // Mantener el ID si estamos editando
         name: name,
         category: category,
         price: price,
         stock: stock,
       );
 
-      widget.onProductSaved(newProduct); // Llamar al callback
+      widget.onProductSaved(product); // Llamar al callback
 
-      // Imprimir en consola por ahora (se puede remover si el SnackBar de PrincipalScreen es suficiente)
-      // print('Producto Guardado y enviado al callback:');
-      // print('Nombre: $name');
-      // print('Categoría: $category');
-      // print('Precio: $price MXN');
-      // print('Stock: $stock');
-
-      // Mostrar un SnackBar localmente también puede ser útil
+      String message = widget.initialProduct != null ? 'Producto actualizado' : 'Producto registrado';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Producto "$name" registrado.')),
+        SnackBar(content: Text('$message: "$name"')),
       );
 
-      // Limpiar campos después de guardar
+      // Limpiar campos después de guardar solo si no estamos editando
+      // O si la edición fue exitosa y queremos limpiar para un nuevo registro.
+      // Por ahora, siempre limpiamos y cerramos.
       _formKey.currentState!.reset();
       _nameController.clear();
       _categoryController.clear();

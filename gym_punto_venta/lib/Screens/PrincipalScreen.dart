@@ -68,20 +68,18 @@ class GymManagementScreenState extends State<GymManagementScreen> {
           });
         }
       },
+      updateProductsCallback: (updatedProducts) { // Added callback for products
+        if (mounted) {
+          setState(() {
+            _products = updatedProducts;
+          });
+        }
+      },
     );
-    // loadGymData is called in GymManagementFunctions constructor.
-    // It now also calls updateDarkModeCallback.
-    _loadProducts(); // Cargar productos al iniciar
+    // loadGymData (which also calls loadProducts) is called in GymManagementFunctions constructor.
   }
 
-  Future<void> _loadProducts() async {
-    if (mounted) {
-      final productsFromDb = await _functions.loadProductsFromDB();
-      setState(() {
-        _products = productsFromDb;
-      });
-    }
-  }
+  // _loadProducts is now handled by GymManagementFunctions and its callback
 
   void _applyFilter(String filter) {
   setState(() {
@@ -118,71 +116,42 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     return end.difference(today).inDays;
   }
 
+  // Updated to use GymManagementFunctions
   Future<void> _addProduct(Product product) async {
     if (mounted) {
-      // Guardar en la BD primero
-      await _functions.saveNewProductToDB(product);
-      // Luego actualizar la lista en memoria y la UI
-      setState(() {
-        _products.add(product); // Asumimos que el product.id ya fue asignado por el constructor de Product
-      });
+      await _functions.addProduct(product); // This will also trigger the callback to update _products
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${product.name} agregado y guardado.')),
+        SnackBar(content: Text('${product.name} agregado a la lista de productos.')),
       );
     }
   }
 
+  // Updated to use GymManagementFunctions
   void _sellProduct(Product productToSell) {
     if (mounted) {
-      setState(() {
-        final productIndex = _products.indexWhere((p) => p.id == productToSell.id);
-        if (productIndex != -1) {
-          if (_products[productIndex].stock > 0) {
-            // Crear una nueva instancia del producto con el stock actualizado
-            final updatedProduct = _products[productIndex].copyWith(
-              stock: _products[productIndex].stock - 1,
-            );
-            _products[productIndex] = updatedProduct;
-            // Actualizar en la BD
-            await _functions.updateProductInDB(updatedProduct);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida y guardada.')),
-            );
-          } else {
-            // Esto no debería ocurrir si el botón está bien deshabilitado en ProductCard
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${productToSell.name} está sin stock.')),
-            );
-          }
-        } else {
-          // Esto tampoco debería ocurrir normalmente
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: Producto ${productToSell.name} no encontrado.')),
-          );
-        }
-      });
-    }
-  }
-
-  void _updateProductStock(Product productToUpdate, int newStock) {
-    if (mounted) {
-      final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
-      if (productIndex != -1) {
-        final updatedProduct = _products[productIndex].copyWith(stock: newStock);
-        // Actualizar en la BD primero
-        await _functions.updateProductInDB(updatedProduct);
-        // Luego actualizar en memoria y UI
-        setState(() {
-          _products[productIndex] = updatedProduct;
-        });
+      final currentProduct = _products.firstWhere((p) => p.id == productToSell.id, orElse: () => productToSell);
+      if (currentProduct.stock > 0) {
+        _functions.updateProductStock(productToSell.id, currentProduct.stock - 1);
+        // Callback will update UI. SnackBar can be shown here or after callback.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock y guardado.')),
+          SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
+          SnackBar(content: Text('${productToSell.name} está sin stock.')),
         );
       }
+    }
+  }
+
+  // Updated to use GymManagementFunctions
+  void _updateProductStock(Product productToUpdate, int newStock) {
+    if (mounted) {
+      _functions.updateProductStock(productToUpdate.id, newStock);
+      // Callback will update UI.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock.')),
+      );
     }
   }
 
