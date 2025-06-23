@@ -72,6 +72,7 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_sale_date ON sales(sale_date)');
     print("DatabaseHelper: _onUpgrade: Ensured sales table and index are created.");
   }
+}
 
   Future<void> _onCreate(Database db, int version) async {
     print("DatabaseHelper: _onCreate called, version: $version");
