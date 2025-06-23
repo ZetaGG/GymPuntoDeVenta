@@ -14,6 +14,7 @@ import 'package:gym_punto_venta/dialogs/edit_stock_dialog.dart'; // Added for Ed
 import '../models/product.dart'; // Added for Product model
 import '../functions/funtions.dart';
 import '../models/clients.dart';
+import '../widgets/balance_dashboard_widget.dart'; // Import for BalanceDashboardWidget
 import 'dart:io'; // For File object in AppBar logo
 
 class GymManagementScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   bool _darkMode = false;
   List<Product> _products = []; // Lista para almacenar productos en memoria
   bool _showStoreView = false; // Estado para alternar entre vista de Clientes y Tienda
+  bool _showBalanceDashboard = false; // Estado para alternar a la vista de Balance
 
   late GymManagementFunctions _functions;
   // Key for Scaffold to show SnackBars from anywhere if needed, or pass context.
@@ -127,14 +129,21 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   }
 
   // Updated to use GymManagementFunctions
-  void _sellProduct(Product productToSell) {
+  // Updated to use GymManagementFunctions new recordSale method
+  Future<void> _sellProduct(Product productToSell) async {
     if (mounted) {
-      final currentProduct = _products.firstWhere((p) => p.id == productToSell.id, orElse: () => productToSell);
-      if (currentProduct.stock > 0) {
-        _functions.updateProductStock(productToSell.id, currentProduct.stock - 1);
-        // Callback will update UI. SnackBar can be shown here or after callback.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida.')),
+      // Find the most up-to-date product information from the local list
+      final currentProductInList = _products.firstWhere((p) => p.id == productToSell.id, orElse: () => productToSell);
+
+      if (currentProductInList.stock > 0) {
+        await _functions.recordSale(currentProductInList, 1);
+        // The recordSale method now handles stock updates and UI refresh via callback.
+        // It also shows its own SnackBar for errors like insufficient stock.
+        // We can show a success SnackBar here if recordSale doesn't, or rely on its internal messages.
+        // For now, let's assume recordSale handles success feedback or we add it there.
+        // If recordSale throws an error for insufficient stock, it's caught there.
+         ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Venta de 1 unidad de ${productToSell.name} procesada.')),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -144,11 +153,13 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     }
   }
 
-  // Updated to use GymManagementFunctions
+  // This method is now for direct stock adjustments (e.g., from EditStockDialog)
+  // It should call the modified updateProductStock in GymManagementFunctions
   void _updateProductStock(Product productToUpdate, int newStock) {
     if (mounted) {
+      // It's important that productToUpdate contains the correct ID.
       _functions.updateProductStock(productToUpdate.id, newStock);
-      // Callback will update UI.
+      // UI will update via callback.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock.')),
       );
@@ -213,6 +224,19 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               if (mounted) {
                 setState(() {
                   _showStoreView = !_showStoreView;
+                  if (_showStoreView) _showBalanceDashboard = false; // Ensure only one view is active
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.analytics, color: _showBalanceDashboard ? Colors.amber : Colors.white),
+            tooltip: 'Ver Balance Financiero',
+            onPressed: () {
+              if (mounted) {
+                setState(() {
+                  _showBalanceDashboard = !_showBalanceDashboard;
+                  if (_showBalanceDashboard) _showStoreView = false; // Ensure only one view is active
                 });
               }
             },
@@ -274,8 +298,14 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             const SizedBox(height: 10), // Reduced space
             // El SwitchListTile y BalanceView permanecen eliminados.
 
-            // Lógica condicional para mostrar la vista de Clientes o la Tienda
-            if (_showStoreView) ...[
+            // Lógica condicional para mostrar la vista de Clientes, Tienda o Balance
+            if (_showBalanceDashboard) ...[
+              // --- VISTA DE BALANCE ---
+              // Placeholder for BalanceDashboardWidget
+              Expanded(
+                child: BalanceDashboardWidget(functions: _functions, darkMode: _darkMode),
+              ),
+            ] else if (_showStoreView) ...[
               // --- VISTA DE TIENDA ---
               SalesSummary(
                 products: _products,

@@ -10,6 +10,8 @@ import 'package:gym_punto_venta/dialogs/renew_client_dialog.dart';
 import 'package:gym_punto_venta/database/database_helper.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:uuid/uuid.dart'; // Import Uuid
+import 'package:intl/intl.dart'; // Import intl for date formatting
 
 class GymManagementFunctions {
   final BuildContext context;
@@ -739,7 +741,7 @@ void renewClientDialog(Client client, BuildContext mainContext) {
     }
   }
 
-  // Method to update product stock
+  // Method to update product stock (now primarily for direct stock adjustments, not sales)
   Future<void> updateProductStock(String id, int newStock) async {
     try {
       await dbHelper.updateProductStock(id, newStock);
@@ -752,9 +754,62 @@ void renewClientDialog(Client client, BuildContext mainContext) {
       }
     } catch (e) {
       print('Error updating product stock: $e');
-      // Consider showing an error message to the user
     }
   }
+
+  Future<void> recordSale(Product product, int quantitySold) async {
+    if (quantitySold <= 0) return; // Or throw an error
+
+    final newStock = product.stock - quantitySold;
+    if (newStock < 0) {
+      // Handle insufficient stock error - maybe show a message to user via context if available
+      print('Error: Insufficient stock for product ${product.name}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stock insuficiente para ${product.name}. Venta no registrada.')),
+      );
+      return;
+    }
+
+    try {
+      // 1. Record the sale transaction
+      final saleData = {
+        'id': Uuid().v4(), // Generate a unique ID for the sale
+        'product_id': product.id,
+        'product_name': product.name,
+        'quantity': quantitySold,
+        'price_per_unit': product.price, // Price at the time of sale
+        'total_amount': product.price * quantitySold,
+        'sale_date': DateTime.now().toIso8601String(),
+      };
+      await dbHelper.insertSale(saleData);
+      print('Sale recorded: ${product.name}, Qty: $quantitySold');
+
+      // 2. Update product stock in DB
+      await dbHelper.updateProductStock(product.id, newStock);
+
+      // 3. Update local product list and notify UI
+      final index = _products.indexWhere((p) => p.id == product.id);
+      if (index != -1) {
+        _products[index] = _products[index].copyWith(stock: newStock);
+        if (updateProductsCallback != null) {
+          updateProductsCallback!(List.from(_products));
+        }
+      }
+       // Also update the main balance
+      _balance += (product.price * quantitySold);
+      await dbHelper.updateSetting('current_balance', _balance.toString());
+      updateBalanceCallback(_balance);
+
+
+    } catch (e) {
+      print('Error recording sale for ${product.name}: $e');
+      // Potentially show error to user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al registrar venta para ${product.name}.')),
+      );
+    }
+  }
+
 
   // DEPRECATED METHODS - Kept for reference during refactoring if needed, can be removed later.
   // Future<List<Product>> loadProductsFromDB() async {
@@ -772,4 +827,31 @@ void renewClientDialog(Client client, BuildContext mainContext) {
   // Future<void> deleteProductFromDB(String id) async {
   //   await dbHelper.deleteProduct(id);
   // }
+
+  // --- Financial Analytics Methods ---
+  Future<Map<String, double>> getCurrentMonthFinancialSummary() async {
+    final now = DateTime.now();
+    final yearMonth = DateFormat('yyyy-MM').format(now);
+
+    try {
+      final productSales = await dbHelper.sumProductSalesForMonth(yearMonth);
+      final membershipRevenue = await dbHelper.sumMembershipRevenueForMonth(yearMonth);
+      final totalRevenue = productSales + membershipRevenue;
+
+      print("Financial Summary for $yearMonth: ProductSales: $productSales, MembershipRevenue: $membershipRevenue, Total: $totalRevenue");
+
+      return {
+        'productSales': productSales,
+        'membershipRevenue': membershipRevenue,
+        'totalRevenue': totalRevenue,
+      };
+    } catch (e) {
+      print("Error fetching financial summary for $yearMonth: $e");
+      return {
+        'productSales': 0.0,
+        'membershipRevenue': 0.0,
+        'totalRevenue': 0.0,
+      };
+    }
+  }
 }
