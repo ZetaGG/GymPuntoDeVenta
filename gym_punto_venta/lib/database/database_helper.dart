@@ -2,8 +2,11 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/clients.dart'; // Added import for Client model
+import '../models/product.dart'; // Added import for Product model
 
 class DatabaseHelper {
+  static const String TABLE_PRODUCTS = 'products'; // Nombre de la tabla de productos
+
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
@@ -115,7 +118,19 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_expense_date ON Expenses(date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_pricehistory_membership_id ON PriceHistory(membership_id)');
 
-    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, and Indexes!");
+    // Crear tabla de Productos
+    await db.execute('''
+      CREATE TABLE $TABLE_PRODUCTS (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT,
+        price REAL NOT NULL,
+        stock INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
+
+    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, $TABLE_PRODUCTS, and Indexes!");
   }
 
   // Client CRUD Methods
@@ -340,5 +355,52 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getAllExpenses({String? orderBy = 'date DESC'}) async {
     final db = await database;
     return await db.query('Expenses', orderBy: orderBy);
+  }
+
+  // Product CRUD Methods
+  Future<int> insertProduct(Product product) async {
+    final db = await database;
+    return await db.insert(TABLE_PRODUCTS, product.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Product>> getAllProducts() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(TABLE_PRODUCTS, orderBy: 'name ASC');
+    return List.generate(maps.length, (i) {
+      return Product.fromMap(maps[i]);
+    });
+  }
+
+  Future<Product?> getProductById(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      TABLE_PRODUCTS,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return Product.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<int> updateProduct(Product product) async {
+    final db = await database;
+    return await db.update(
+      TABLE_PRODUCTS,
+      product.toMap(),
+      where: 'id = ?',
+      whereArgs: [product.id],
+    );
+  }
+
+  Future<int> deleteProduct(String id) async {
+    final db = await database;
+    return await db.delete(
+      TABLE_PRODUCTS,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }
