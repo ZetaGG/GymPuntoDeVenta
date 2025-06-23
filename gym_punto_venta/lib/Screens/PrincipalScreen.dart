@@ -10,6 +10,7 @@ import 'package:gym_punto_venta/screens/settings_screen.dart'; // Added
 import 'package:gym_punto_venta/screens/product_registration_screen.dart'; // Added for product registration
 import 'package:gym_punto_venta/widgets/product_list.dart'; // Added for ProductList widget
 import 'package:gym_punto_venta/widgets/sales_summary.dart'; // Added for SalesSummary widget
+import 'package:gym_punto_venta/dialogs/edit_stock_dialog.dart'; // Added for EditStockDialog
 import '../models/product.dart'; // Added for Product model
 import '../functions/funtions.dart';
 import '../models/clients.dart';
@@ -148,6 +149,40 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     }
   }
 
+  void _updateProductStock(Product productToUpdate, int newStock) {
+    if (mounted) {
+      setState(() {
+        final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
+        if (productIndex != -1) {
+          _products[productIndex] = _products[productIndex].copyWith(stock: newStock);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _showEditStockDialog(Product product) async {
+    final newStock = await showDialog<int>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return EditStockDialog(
+          product: product,
+          darkMode: _darkMode,
+        );
+      },
+    );
+
+    if (newStock != null) {
+      _updateProductStock(product, newStock);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Ensure _functions is initialized before trying to access its properties in build
@@ -278,6 +313,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   products: _products,
                   darkMode: _darkMode,
                   onSellProduct: _sellProduct,
+                   onEditStockProduct: _showEditStockDialog, // Pasar el nuevo callback
                 ),
               ),
             ] else ...[
