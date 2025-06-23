@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:gym_punto_venta/models/clients.dart';
+import 'package:gym_punto_venta/models/product.dart'; // Importar Product
 import 'package:gym_punto_venta/dialogs/add_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/edit_client_dialog.dart';
 import 'package:gym_punto_venta/dialogs/renew_client_dialog.dart';
@@ -664,5 +665,25 @@ void renewClientDialog(Client client, BuildContext mainContext) {
     } catch (e) {
       return "Error during biometric authentication: $e. Available types: $biometricsString";
     }
+  }
+
+  // --- Product Database Operations ---
+
+  Future<List<Product>> loadProductsFromDB() async {
+    return await dbHelper.getAllProducts();
+  }
+
+  Future<void> saveNewProductToDB(Product product) async {
+    await dbHelper.insertProduct(product);
+    // Podríamos querer actualizar alguna lista en memoria aquí o depender de que PrincipalScreen lo haga.
+    // Por ahora, solo guardamos. La carga se hará en initState de PrincipalScreen.
+  }
+
+  Future<void> updateProductInDB(Product product) async {
+    await dbHelper.updateProduct(product);
+  }
+
+  Future<void> deleteProductFromDB(String id) async {
+    await dbHelper.deleteProduct(id);
   }
 }

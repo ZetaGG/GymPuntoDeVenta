@@ -71,6 +71,16 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     );
     // loadGymData is called in GymManagementFunctions constructor.
     // It now also calls updateDarkModeCallback.
+    _loadProducts(); // Cargar productos al iniciar
+  }
+
+  Future<void> _loadProducts() async {
+    if (mounted) {
+      final productsFromDb = await _functions.loadProductsFromDB();
+      setState(() {
+        _products = productsFromDb;
+      });
+    }
   }
 
   void _applyFilter(String filter) {
@@ -108,16 +118,18 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     return end.difference(today).inDays;
   }
 
-  void _addProduct(Product product) {
+  Future<void> _addProduct(Product product) async {
     if (mounted) {
+      // Guardar en la BD primero
+      await _functions.saveNewProductToDB(product);
+      // Luego actualizar la lista en memoria y la UI
       setState(() {
-        _products.add(product);
+        _products.add(product); // Asumimos que el product.id ya fue asignado por el constructor de Product
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${product.name} agregado y guardado.')),
+      );
     }
-     // Opcional: Mostrar un SnackBar o mensaje de confirmación aquí si se desea
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${product.name} agregado a la lista de productos.')),
-    );
   }
 
   void _sellProduct(Product productToSell) {
@@ -127,11 +139,14 @@ class GymManagementScreenState extends State<GymManagementScreen> {
         if (productIndex != -1) {
           if (_products[productIndex].stock > 0) {
             // Crear una nueva instancia del producto con el stock actualizado
-            _products[productIndex] = _products[productIndex].copyWith(
+            final updatedProduct = _products[productIndex].copyWith(
               stock: _products[productIndex].stock - 1,
             );
+            _products[productIndex] = updatedProduct;
+            // Actualizar en la BD
+            await _functions.updateProductInDB(updatedProduct);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida.')),
+              SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida y guardada.')),
             );
           } else {
             // Esto no debería ocurrir si el botón está bien deshabilitado en ProductCard
@@ -151,19 +166,23 @@ class GymManagementScreenState extends State<GymManagementScreen> {
 
   void _updateProductStock(Product productToUpdate, int newStock) {
     if (mounted) {
-      setState(() {
-        final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
-        if (productIndex != -1) {
-          _products[productIndex] = _products[productIndex].copyWith(stock: newStock);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock.')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
-          );
-        }
-      });
+      final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
+      if (productIndex != -1) {
+        final updatedProduct = _products[productIndex].copyWith(stock: newStock);
+        // Actualizar en la BD primero
+        await _functions.updateProductInDB(updatedProduct);
+        // Luego actualizar en memoria y UI
+        setState(() {
+          _products[productIndex] = updatedProduct;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock y guardado.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
+        );
+      }
     }
   }
 
