@@ -23,8 +23,9 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'gym_database.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incremented version to trigger _onCreate or _onUpgrade
       onCreate: _onCreate,
+      // Optionally, define onUpgrade and onDowngrade for more complex migrations
     );
   }
 
