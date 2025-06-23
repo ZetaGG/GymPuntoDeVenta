@@ -32,8 +32,8 @@ class Product {
     );
   }
 
-  // Métodos para la persistencia con sqflite
-  Map<String, dynamic> toMap() {
+  // Métodos para serialización con la base de datos
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
@@ -43,13 +43,13 @@ class Product {
     };
   }
 
-  factory Product.fromMap(Map<String, dynamic> map) {
+  factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      category: map['category'] as String,
-      price: map['price'] as double,
-      stock: map['stock'] as int,
+      id: json['id'] as String,
+      name: json['name'] as String,
+      category: json['category'] as String,
+      price: (json['price'] is int) ? (json['price'] as int).toDouble() : json['price'] as double,
+      stock: json['stock'] as int,
     );
   }
 }

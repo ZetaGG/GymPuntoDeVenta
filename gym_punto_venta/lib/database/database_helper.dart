@@ -129,6 +129,7 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)'); // Added index for category
 
     print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, $TABLE_PRODUCTS, and Indexes!");
   }
@@ -358,9 +359,9 @@ class DatabaseHelper {
   }
 
   // Product CRUD Methods
-  Future<int> insertProduct(Product product) async {
+  Future<void> insertProduct(Product product) async {
     final db = await database;
-    return await db.insert(TABLE_PRODUCTS, product.toMap(),
+    await db.insert(TABLE_PRODUCTS, product.toJson(), // Changed to toJson
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -368,7 +369,7 @@ class DatabaseHelper {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(TABLE_PRODUCTS, orderBy: 'name ASC');
     return List.generate(maps.length, (i) {
-      return Product.fromMap(maps[i]);
+      return Product.fromJson(maps[i]); // Changed to fromJson
     });
   }
 
@@ -380,25 +381,35 @@ class DatabaseHelper {
       whereArgs: [id],
     );
     if (maps.isNotEmpty) {
-      return Product.fromMap(maps.first);
+      return Product.fromJson(maps.first); // Changed to fromJson
     }
     return null;
   }
 
-  Future<int> updateProduct(Product product) async {
+  Future<void> updateProduct(Product product) async {
     final db = await database;
-    return await db.update(
+    await db.update(
       TABLE_PRODUCTS,
-      product.toMap(),
+      product.toJson(), // Changed to toJson
       where: 'id = ?',
       whereArgs: [product.id],
     );
   }
 
-  Future<int> deleteProduct(String id) async {
+  Future<void> deleteProduct(String id) async {
     final db = await database;
-    return await db.delete(
+    await db.delete(
       TABLE_PRODUCTS,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> updateProductStock(String id, int newStock) async {
+    final db = await database;
+    await db.update(
+      TABLE_PRODUCTS,
+      {'stock': newStock},
       where: 'id = ?',
       whereArgs: [id],
     );
