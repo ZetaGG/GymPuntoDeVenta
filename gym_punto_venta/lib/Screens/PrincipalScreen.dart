@@ -132,57 +132,79 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     }
   }
 
-  void _sellProduct(Product productToSell) {
-    if (mounted) {
-      setState(() {
-        final productIndex = _products.indexWhere((p) => p.id == productToSell.id);
-        if (productIndex != -1) {
-          if (_products[productIndex].stock > 0) {
-            // Crear una nueva instancia del producto con el stock actualizado
-            final updatedProduct = _products[productIndex].copyWith(
-              stock: _products[productIndex].stock - 1,
-            );
-            _products[productIndex] = updatedProduct;
-            // Actualizar en la BD
-            await _functions.updateProductInDB(updatedProduct);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida y guardada.')),
-            );
-          } else {
-            // Esto no debería ocurrir si el botón está bien deshabilitado en ProductCard
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${productToSell.name} está sin stock.')),
-            );
-          }
-        } else {
-          // Esto tampoco debería ocurrir normalmente
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: Producto ${productToSell.name} no encontrado.')),
-          );
-        }
-      });
+  Future<void> _sellProduct(Product productToSell) async {
+    if (!mounted) return;
+
+    final productIndex = _products.indexWhere((p) => p.id == productToSell.id);
+
+    if (productIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Producto ${productToSell.name} no encontrado.')),
+      );
+      return;
+    }
+
+    if (_products[productIndex].stock <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${productToSell.name} está sin stock.')),
+      );
+      // Aunque el botón debería estar deshabilitado, esta es una doble verificación.
+      // Es importante también actualizar la UI por si acaso, aunque no debería cambiar nada si ya estaba en 0.
+      if (mounted) setState(() {});
+      return;
+    }
+
+    final updatedProduct = _products[productIndex].copyWith(
+      stock: _products[productIndex].stock - 1,
+    );
+
+    try {
+      await _functions.updateProductInDB(updatedProduct);
+      if (mounted) {
+        setState(() {
+          _products[productIndex] = updatedProduct;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida y guardada.')),
+        );
+      }
+    } catch (e) {
+      // Considerar revertir el cambio en memoria o notificar de forma más específica si la BD falla
+      print("Error al actualizar producto en DB: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar venta de ${productToSell.name}. Intente de nuevo.')),
+      );
     }
   }
 
-  void _updateProductStock(Product productToUpdate, int newStock) {
-    if (mounted) {
-      final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
-      if (productIndex != -1) {
-        final updatedProduct = _products[productIndex].copyWith(stock: newStock);
-        // Actualizar en la BD primero
-        await _functions.updateProductInDB(updatedProduct);
-        // Luego actualizar en memoria y UI
+  Future<void> _updateProductStock(Product productToUpdate, int newStock) async {
+    if (!mounted) return;
+
+    final productIndex = _products.indexWhere((p) => p.id == productToUpdate.id);
+    if (productIndex == -1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
+      );
+      return;
+    }
+
+    final updatedProduct = _products[productIndex].copyWith(stock: newStock);
+
+    try {
+      await _functions.updateProductInDB(updatedProduct);
+      if (mounted) {
         setState(() {
           _products[productIndex] = updatedProduct;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock y guardado.')),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: Producto ${productToUpdate.name} no encontrado para actualizar stock.')),
-        );
       }
+    } catch (e) {
+      print("Error al actualizar stock en DB: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar stock de ${productToUpdate.name}. Intente de nuevo.')),
+      );
     }
   }
 
