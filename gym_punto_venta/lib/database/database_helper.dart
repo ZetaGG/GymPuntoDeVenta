@@ -7,7 +7,7 @@ import '../models/product.dart'; // Added import for Product model
 
 class DatabaseHelper {
   static const String TABLE_PRODUCTS = 'products'; // Nombre de la tabla de productos
-  static const String DB_NAME = 'gym_database_fresh_v3.db'; // New DB name
+  static const String DB_NAME = 'gym_database.db'; // Restored original DB name
 
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
@@ -22,21 +22,22 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDb() async {
-    String path = join(await getDatabasesPath(), DB_NAME); // Use new DB name
-    print("DatabaseHelper: _initDb: Database path: $path (Using explicit FFI factory and new DB name)");
+    String path = join(await getDatabasesPath(), DB_NAME); // Use original DB name
+    print("DatabaseHelper: _initDb: Database path: $path (Using explicit FFI factory)");
 
-    try {
-      print("DatabaseHelper: _initDb: Attempting to delete existing database at $path using databaseFactoryFfi");
-      await databaseFactoryFfi.deleteDatabase(path); // Explicitly use databaseFactoryFfi
-      print("DatabaseHelper: _initDb: Successfully deleted database at $path using databaseFactoryFfi");
-    } catch (e) {
-      print("DatabaseHelper: _initDb: Error deleting database at $path using databaseFactoryFfi: $e");
-    }
+    // Removed database deletion to preserve data
+    // try {
+    //   print("DatabaseHelper: _initDb: Attempting to delete existing database at $path using databaseFactoryFfi");
+    //   await databaseFactoryFfi.deleteDatabase(path); // Explicitly use databaseFactoryFfi
+    //   print("DatabaseHelper: _initDb: Successfully deleted database at $path using databaseFactoryFfi");
+    // } catch (e) {
+    //   print("DatabaseHelper: _initDb: Error deleting database at $path using databaseFactoryFfi: $e");
+    // }
 
     return await databaseFactoryFfi.openDatabase( // Explicitly use databaseFactoryFfi
       path,
       options: OpenDatabaseOptions( // Use OpenDatabaseOptions for FFI
-        version: 3, // Incremented version
+        version: 4, // Incremented version to trigger _onUpgrade for missing tables
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       )
@@ -45,33 +46,34 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     print("DatabaseHelper: _onUpgrade called, oldVersion: $oldVersion, newVersion: $newVersion");
-    // The aggressive deletion in _initDb should mean _onCreate is called directly more often.
-    // However, _onUpgrade is still good practice.
-    // If oldVersion is 1 and newVersion is 2 (or higher), drop and recreate.
-    if (oldVersion < newVersion && oldVersion == 1) {
-        print("DatabaseHelper: _onUpgrade: Destructive upgrade from v$oldVersion to v$newVersion. Dropping all tables and recreating.");
-        await db.execute("DROP TABLE IF EXISTS Clients");
-        await db.execute("DROP TABLE IF EXISTS Memberships");
-        await db.execute("DROP TABLE IF EXISTS AppSettings");
-        await db.execute("DROP TABLE IF EXISTS Income");
-        await db.execute("DROP TABLE IF EXISTS Expenses");
-        await db.execute("DROP TABLE IF EXISTS PriceHistory");
-        await db.execute("DROP TABLE IF EXISTS $TABLE_PRODUCTS");
-        await _onCreate(db, newVersion); // Re-create all tables
-    } else {
-      // Handle other potential upgrade paths if necessary in the future.
-      // For now, if not from v1, this path might not be strictly needed if deletion in _initDb works.
-      print("DatabaseHelper: _onUpgrade: Unhandled upgrade path from v$oldVersion to v$newVersion or deletion in _initDb handled it.");
+    if (oldVersion < 4) { // Check if upgrading from a version before Products table was reliably added
+      print("DatabaseHelper: _onUpgrade: Upgrading from v$oldVersion to v$newVersion. Ensuring $TABLE_PRODUCTS table exists.");
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $TABLE_PRODUCTS (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          category TEXT,
+          price REAL NOT NULL,
+          stock INTEGER NOT NULL
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)');
+      print("DatabaseHelper: _onUpgrade: Ensured $TABLE_PRODUCTS table and indexes are created.");
     }
+    // Add other specific upgrade logic here if needed for other tables or versions
+    // For example, if version 5 introduces a new column to an existing table:
+    // if (oldVersion < 5) {
+    //   await db.execute("ALTER TABLE SomeTable ADD COLUMN new_column TEXT;");
+    // }
   }
 
   Future<void> _onCreate(Database db, int version) async {
     print("DatabaseHelper: _onCreate called, version: $version");
-    // The CREATE TABLE statements will proceed as before.
-    // Consider adding "IF NOT EXISTS" to table creations if _onCreate could be called on a partially existing DB,
-    // though the deleteDatabase + onUpgrade strategy aims to prevent that.
+
+    // All CREATE TABLE statements now use IF NOT EXISTS for idempotency
     await db.execute('''
-      CREATE TABLE Clients (
+      CREATE TABLE IF NOT EXISTS Clients (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT,
@@ -89,7 +91,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE Memberships (
+      CREATE TABLE IF NOT EXISTS Memberships (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         price REAL NOT NULL,
@@ -102,24 +104,27 @@ class DatabaseHelper {
     await db.execute("INSERT INTO Memberships (name, price, duration_days) VALUES ('Visit', 5.0, 1)");
 
     await db.execute('''
-      CREATE TABLE AppSettings (
+      CREATE TABLE IF NOT EXISTS AppSettings (
         key TEXT PRIMARY KEY,
         value TEXT
       )
     ''');
 
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('gym_name', 'My Gym')");
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('dark_mode', 'false')");
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('inactive_days_threshold', '30')");
+    // Initial data for AppSettings should also be guarded or handled carefully if _onCreate can be called multiple times.
+    // For simplicity here, we assume these are safe to re-run or are for initial setup.
+    // A more robust way would be INSERT OR IGNORE or checking existence before inserting.
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('gym_name', 'My Gym')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('dark_mode', 'false')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('inactive_days_threshold', '30')");
     // Add new settings for trial/license
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('license_status', 'Uninitialized')");
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('installation_date', '')");
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('license_key', '')");
-    await db.execute("INSERT INTO AppSettings (key, value) VALUES ('activated_device_id', '')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('license_status', 'Uninitialized')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('installation_date', '')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('license_key', '')");
+    await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('activated_device_id', '')");
 
     // Income Table
     await db.execute('''
-      CREATE TABLE Income (
+      CREATE TABLE IF NOT EXISTS Income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         description TEXT NOT NULL,
         amount REAL NOT NULL,
@@ -132,7 +137,7 @@ class DatabaseHelper {
 
     // Expenses Table
     await db.execute('''
-      CREATE TABLE Expenses (
+      CREATE TABLE IF NOT EXISTS Expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         description TEXT NOT NULL,
         amount REAL NOT NULL,
@@ -142,7 +147,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-    CREATE TABLE PriceHistory (
+    CREATE TABLE IF NOT EXISTS PriceHistory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       membership_id INTEGER NOT NULL,
       old_price REAL NOT NULL,
@@ -161,7 +166,7 @@ class DatabaseHelper {
 
     // Crear tabla de Productos
     await db.execute('''
-      CREATE TABLE $TABLE_PRODUCTS (
+      CREATE TABLE IF NOT EXISTS $TABLE_PRODUCTS (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         category TEXT,
