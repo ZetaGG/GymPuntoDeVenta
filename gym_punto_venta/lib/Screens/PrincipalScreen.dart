@@ -8,6 +8,9 @@ import 'package:gym_punto_venta/widgets/search_bar.dart' as custom;
 // import 'package:gym_punto_venta/widgets/settins_model.dart'; // Removed
 import 'package:gym_punto_venta/screens/settings_screen.dart'; // Added
 import 'package:gym_punto_venta/screens/product_registration_screen.dart'; // Added for product registration
+import 'package:gym_punto_venta/widgets/product_list.dart'; // Added for ProductList widget
+import 'package:gym_punto_venta/widgets/sales_summary.dart'; // Added for SalesSummary widget
+import '../models/product.dart'; // Added for Product model
 import '../functions/funtions.dart';
 import '../models/clients.dart';
 import 'dart:io'; // For File object in AppBar logo
@@ -27,6 +30,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
 
   // bool _showBalanceView = false; // Eliminado
   bool _darkMode = false;
+  List<Product> _products = []; // Lista para almacenar productos en memoria
 
   late GymManagementFunctions _functions;
   // Key for Scaffold to show SnackBars from anywhere if needed, or pass context.
@@ -102,6 +106,47 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     return end.difference(today).inDays;
   }
 
+  void _addProduct(Product product) {
+    if (mounted) {
+      setState(() {
+        _products.add(product);
+      });
+    }
+     // Opcional: Mostrar un SnackBar o mensaje de confirmación aquí si se desea
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${product.name} agregado a la lista de productos.')),
+    );
+  }
+
+  void _sellProduct(Product productToSell) {
+    if (mounted) {
+      setState(() {
+        final productIndex = _products.indexWhere((p) => p.id == productToSell.id);
+        if (productIndex != -1) {
+          if (_products[productIndex].stock > 0) {
+            // Crear una nueva instancia del producto con el stock actualizado
+            _products[productIndex] = _products[productIndex].copyWith(
+              stock: _products[productIndex].stock - 1,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('¡Venta exitosa! 1 unidad de ${productToSell.name} vendida.')),
+            );
+          } else {
+            // Esto no debería ocurrir si el botón está bien deshabilitado en ProductCard
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('${productToSell.name} está sin stock.')),
+            );
+          }
+        } else {
+          // Esto tampoco debería ocurrir normalmente
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: Producto ${productToSell.name} no encontrado.')),
+          );
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Ensure _functions is initialized before trying to access its properties in build
@@ -144,7 +189,10 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ProductRegistrationScreen(darkMode: _darkMode),
+                  builder: (context) => ProductRegistrationScreen(
+                    darkMode: _darkMode,
+                    onProductSaved: _addProduct, // Pasar el callback
+                  ),
                 ),
               );
             },
@@ -227,41 +275,53 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             // else
             // Use getter for clients from _functions
             // Siempre mostramos ClientStatsView ahora
-            ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays),
-            const SizedBox(height: 20),
-            custom.SearchBar(
-              searchController: _searchController,
-              clients: _clients,
-              onSearch: (value) {
-                setState(() {
-                  _filteredClients = _clients.where((client) =>
-                      client.name.toLowerCase().contains(value.toLowerCase()) ||
-                      (client.email?.toLowerCase() ?? '').contains(value.toLowerCase()) ||
-                      (client.phone?.toLowerCase() ?? '').contains(value.toLowerCase())
-                  ).toList();
-                });
-              },
+            // ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays), // Reemplazado
+            // const SizedBox(height: 20), // Reemplazado
+            SalesSummary(
+              products: _products,
               darkMode: _darkMode,
-              currentFilter: _currentFilter,
-              applyFilter: _applyFilter,
             ),
-            const SizedBox(height: 20),
             Expanded(
-              child: ClientTable(
-                mode: _darkMode,
-                clients: _filteredClients,
-                onEdit: _functions.editClientDialog,
-                onRenew: (client) => _functions.renewClientDialog(client, context),
-                onDelete: (client) async {
-                  await _functions.deleteClient(client);
-                  // _applyFilter(_currentFilter); // Re-apply filter after delete if needed, though updateClients should handle it
-                },
-                onRegisterVisit: (client) async { // Add this callback
-                  await _functions.registerClientVisit(client);
-                  // _applyFilter(_currentFilter); // Re-apply filter if isActive status change affects visibility
-                },
+              child: ProductList(
+                products: _products,
+                darkMode: _darkMode,
+                onSellProduct: _sellProduct,
               ),
             ),
+            // La SearchBar y ClientTable se abordarán a continuación.
+            // Por ahora, mantenemos el custom.SearchBar para evitar errores de diff grandes.
+            // const SizedBox(height: 20), // Este SizedBox es el que estaba ANTES de SearchBar. Comentado/Eliminado.
+            // custom.SearchBar( // Comentado ya que la UI principal es ahora para productos
+            //   searchController: _searchController,
+            //   clients: _clients,
+            //   onSearch: (value) {
+            //     setState(() {
+            //       _filteredClients = _clients.where((client) =>
+            //           client.name.toLowerCase().contains(value.toLowerCase()) ||
+            //           (client.email?.toLowerCase() ?? '').contains(value.toLowerCase()) ||
+            //           (client.phone?.toLowerCase() ?? '').contains(value.toLowerCase())
+            //       ).toList();
+            //     });
+            //   },
+            //   darkMode: _darkMode,
+            //   currentFilter: _currentFilter,
+            //   applyFilter: _applyFilter,
+            // ),
+            // const SizedBox(height: 20), // Comentado
+            // Expanded( // ClientTable comentada ya que la UI principal es para productos
+            //   child: ClientTable(
+            //     mode: _darkMode,
+            //     clients: _filteredClients,
+            //     onEdit: _functions.editClientDialog,
+            //     onRenew: (client) => _functions.renewClientDialog(client, context),
+            //     onDelete: (client) async {
+            //       await _functions.deleteClient(client);
+            //     },
+            //     onRegisterVisit: (client) async {
+            //       await _functions.registerClientVisit(client);
+            //     },
+            //   ),
+            // ),
           ],
         ),
       ),

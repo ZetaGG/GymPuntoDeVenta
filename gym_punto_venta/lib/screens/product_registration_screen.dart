@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:gym_punto_venta/widgets/custom_form_field.dart'; // Importar el widget reutilizable
+import 'package:gym_punto_venta/models/product.dart'; // Importar el modelo Product
 
 class ProductRegistrationScreen extends StatefulWidget {
   final bool darkMode;
+  final Function(Product) onProductSaved; // Callback para guardar el producto
 
-  const ProductRegistrationScreen({Key? key, required this.darkMode}) : super(key: key);
+  const ProductRegistrationScreen({
+    Key? key,
+    required this.darkMode,
+    required this.onProductSaved,
+  }) : super(key: key);
 
   @override
   _ProductRegistrationScreenState createState() => _ProductRegistrationScreenState();
@@ -28,33 +34,41 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
 
   void _saveProduct() {
     if (_formKey.currentState!.validate()) {
-      // Lógica para guardar el producto aquí
       String name = _nameController.text;
       String category = _categoryController.text;
       double price = double.tryParse(_priceController.text) ?? 0.0;
       int stock = int.tryParse(_stockController.text) ?? 0;
 
-      // Imprimir en consola por ahora
-      print('Producto Guardado:');
-      print('Nombre: $name');
-      print('Categoría: $category');
-      print('Precio: $price MXN');
-      print('Stock: $stock');
-
-      // Mostrar un SnackBar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Producto "$name" guardado')),
+      final newProduct = Product(
+        name: name,
+        category: category,
+        price: price,
+        stock: stock,
       );
 
-      // Opcional: Limpiar campos después de guardar
-      // _formKey.currentState!.reset();
-      // _nameController.clear();
-      // _categoryController.clear();
-      // _priceController.clear();
-      // _stockController.clear();
+      widget.onProductSaved(newProduct); // Llamar al callback
 
-      // Opcional: Regresar a la pantalla anterior
-      // Navigator.pop(context);
+      // Imprimir en consola por ahora (se puede remover si el SnackBar de PrincipalScreen es suficiente)
+      // print('Producto Guardado y enviado al callback:');
+      // print('Nombre: $name');
+      // print('Categoría: $category');
+      // print('Precio: $price MXN');
+      // print('Stock: $stock');
+
+      // Mostrar un SnackBar localmente también puede ser útil
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Producto "$name" registrado.')),
+      );
+
+      // Limpiar campos después de guardar
+      _formKey.currentState!.reset();
+      _nameController.clear();
+      _categoryController.clear();
+      _priceController.clear();
+      _stockController.clear();
+
+      // Regresar a la pantalla anterior
+      Navigator.pop(context);
     }
   }
 
