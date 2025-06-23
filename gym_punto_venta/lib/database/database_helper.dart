@@ -25,19 +25,10 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), DB_NAME); // Use original DB name
     print("DatabaseHelper: _initDb: Database path: $path (Using explicit FFI factory)");
 
-    // Removed database deletion to preserve data
-    // try {
-    //   print("DatabaseHelper: _initDb: Attempting to delete existing database at $path using databaseFactoryFfi");
-    //   await databaseFactoryFfi.deleteDatabase(path); // Explicitly use databaseFactoryFfi
-    //   print("DatabaseHelper: _initDb: Successfully deleted database at $path using databaseFactoryFfi");
-    // } catch (e) {
-    //   print("DatabaseHelper: _initDb: Error deleting database at $path using databaseFactoryFfi: $e");
-    // }
-
     return await databaseFactoryFfi.openDatabase( // Explicitly use databaseFactoryFfi
       path,
       options: OpenDatabaseOptions( // Use OpenDatabaseOptions for FFI
-        version: 4, // Incremented version to trigger _onUpgrade for missing tables
+        version: 5, // Incremented version to trigger _onUpgrade for sales table
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       )
@@ -46,8 +37,10 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     print("DatabaseHelper: _onUpgrade called, oldVersion: $oldVersion, newVersion: $newVersion");
-    if (oldVersion < 4) { // Check if upgrading from a version before Products table was reliably added
-      print("DatabaseHelper: _onUpgrade: Upgrading from v$oldVersion to v$newVersion. Ensuring $TABLE_PRODUCTS table exists.");
+
+    // Ensure Products table exists if upgrading from a version < 4
+    if (oldVersion < 4) {
+      print("DatabaseHelper: _onUpgrade: (oldVersion $oldVersion < 4) Ensuring $TABLE_PRODUCTS table exists.");
       await db.execute('''
         CREATE TABLE IF NOT EXISTS $TABLE_PRODUCTS (
           id TEXT PRIMARY KEY,
@@ -59,13 +52,25 @@ class DatabaseHelper {
       ''');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)');
-      print("DatabaseHelper: _onUpgrade: Ensured $TABLE_PRODUCTS table and indexes are created.");
+      print("DatabaseHelper: _onUpgrade: Ensured $TABLE_PRODUCTS table and indexes are created for oldVersion < 4.");
     }
-    // Add other specific upgrade logic here if needed for other tables or versions
-    // For example, if version 5 introduces a new column to an existing table:
-    // if (oldVersion < 5) {
-    //   await db.execute("ALTER TABLE SomeTable ADD COLUMN new_column TEXT;");
-    // }
+
+    // Ensure sales table exists if upgrading from a version < 5
+    if (oldVersion < 5) {
+      print("DatabaseHelper: _onUpgrade: (oldVersion $oldVersion < 5) Ensuring sales table exists.");
+      await db.execute('''
+      CREATE TABLE IF NOT EXISTS sales (
+        id TEXT PRIMARY KEY,
+        product_id TEXT,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        price_per_unit REAL NOT NULL,
+        total_amount REAL NOT NULL,
+        sale_date TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_sale_date ON sales(sale_date)');
+    print("DatabaseHelper: _onUpgrade: Ensured sales table and index are created.");
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -99,9 +104,9 @@ class DatabaseHelper {
       )
     ''');
 
-    await db.execute("INSERT INTO Memberships (name, price, duration_days) VALUES ('Weekly', 10.0, 7)");
-    await db.execute("INSERT INTO Memberships (name, price, duration_days) VALUES ('Monthly', 30.0, 30)");
-    await db.execute("INSERT INTO Memberships (name, price, duration_days) VALUES ('Visit', 5.0, 1)");
+    await db.execute("INSERT OR IGNORE INTO Memberships (name, price, duration_days) VALUES ('Weekly', 10.0, 7)");
+    await db.execute("INSERT OR IGNORE INTO Memberships (name, price, duration_days) VALUES ('Monthly', 30.0, 30)");
+    await db.execute("INSERT OR IGNORE INTO Memberships (name, price, duration_days) VALUES ('Visit', 5.0, 1)");
 
     await db.execute('''
       CREATE TABLE IF NOT EXISTS AppSettings (
@@ -110,19 +115,14 @@ class DatabaseHelper {
       )
     ''');
 
-    // Initial data for AppSettings should also be guarded or handled carefully if _onCreate can be called multiple times.
-    // For simplicity here, we assume these are safe to re-run or are for initial setup.
-    // A more robust way would be INSERT OR IGNORE or checking existence before inserting.
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('gym_name', 'My Gym')");
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('dark_mode', 'false')");
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('inactive_days_threshold', '30')");
-    // Add new settings for trial/license
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('license_status', 'Uninitialized')");
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('installation_date', '')");
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('license_key', '')");
     await db.execute("INSERT OR IGNORE INTO AppSettings (key, value) VALUES ('activated_device_id', '')");
 
-    // Income Table
     await db.execute('''
       CREATE TABLE IF NOT EXISTS Income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,7 +135,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // Expenses Table
     await db.execute('''
       CREATE TABLE IF NOT EXISTS Expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,14 +156,6 @@ class DatabaseHelper {
     )
     ''');
 
-    // Add Indexes
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_membership_type_id ON Clients(membership_type_id)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_name ON Clients(name)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_income_date ON Income(date)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_expense_date ON Expenses(date)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_pricehistory_membership_id ON PriceHistory(membership_id)');
-
-    // Crear tabla de Productos
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $TABLE_PRODUCTS (
         id TEXT PRIMARY KEY,
@@ -174,10 +165,32 @@ class DatabaseHelper {
         stock INTEGER NOT NULL
       )
     ''');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)'); // Added index for category
 
-    print("Database created with tables Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, $TABLE_PRODUCTS, and Indexes!");
+    // Sales table (new)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sales (
+        id TEXT PRIMARY KEY,
+        product_id TEXT,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        price_per_unit REAL NOT NULL,
+        total_amount REAL NOT NULL,
+        sale_date TEXT NOT NULL
+      )
+    ''');
+
+    // Add Indexes
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_membership_type_id ON Clients(membership_type_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_client_name ON Clients(name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_income_date ON Income(date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_expense_date ON Expenses(date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_pricehistory_membership_id ON PriceHistory(membership_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON $TABLE_PRODUCTS(name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_product_category ON $TABLE_PRODUCTS(category)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_sale_date ON sales(sale_date)');
+
+
+    print("Database created/updated with all tables (Clients, Memberships, AppSettings, Income, Expenses, PriceHistory, $TABLE_PRODUCTS, sales) and Indexes!");
   }
 
   // Client CRUD Methods
@@ -459,5 +472,37 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // Sales Table CRUD
+  Future<void> insertSale(Map<String, dynamic> saleData) async {
+    final db = await database;
+    await db.insert('sales', saleData, conflictAlgorithm: ConflictAlgorithm.replace);
+    print("DatabaseHelper: Recorded sale: $saleData");
+  }
+
+  // Analytics Queries
+  Future<double> sumProductSalesForMonth(String yearMonth) async { // yearMonth format: "YYYY-MM"
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.rawQuery(
+      "SELECT SUM(total_amount) as total FROM sales WHERE strftime('%Y-%m', sale_date) = ?",
+      [yearMonth],
+    );
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return (result.first['total'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  Future<double> sumMembershipRevenueForMonth(String yearMonth) async { // yearMonth format: "YYYY-MM"
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM Income WHERE type = 'Membership' AND strftime('%Y-%m', date) = ?",
+      [yearMonth],
+    );
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return (result.first['total'] as num).toDouble();
+    }
+    return 0.0;
   }
 }
