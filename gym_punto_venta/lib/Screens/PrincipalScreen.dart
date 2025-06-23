@@ -316,7 +316,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               ),
             ),
           ],
-        ),
+        ]),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: _darkMode ? Colors.grey[700] : (_showStoreView ? Colors.teal : Colors.blue),
