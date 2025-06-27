@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:gym_punto_venta/widgets/custom_form_field.dart'; // Importar el widget reutilizable
-import 'package:gym_punto_venta/models/product.dart'; // Importar el modelo Product
+import 'package:gym_punto_venta/models/product.dart';
+import 'package:gym_punto_venta/widgets/custom_form_field.dart';
 
-class ProductRegistrationScreen extends StatefulWidget {
+class AddProductDialog extends StatefulWidget {
   final bool darkMode;
-  final Function(Product) onProductSaved; // Callback para guardar el producto
-  final Product? initialProduct; // Para editar un producto existente
+  final Function(Product) onProductSaved;
+  final Product? initialProduct; // Para futura edición si se decide unificar
 
-  const ProductRegistrationScreen({
+  const AddProductDialog({
     Key? key,
     required this.darkMode,
     required this.onProductSaved,
-    this.initialProduct, // Nuevo parámetro opcional
+    this.initialProduct,
   }) : super(key: key);
 
   @override
-  _ProductRegistrationScreenState createState() => _ProductRegistrationScreenState();
+  _AddProductDialogState createState() => _AddProductDialogState();
 }
 
-class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
+class _AddProductDialogState extends State<AddProductDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _categoryController = TextEditingController();
@@ -53,66 +53,31 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
       int stock = int.tryParse(_stockController.text) ?? 0;
 
       final product = Product(
-        id: widget.initialProduct?.id, // Mantener el ID si estamos editando
+        // id se asignará en la base de datos o por la función que guarda
         name: name,
         category: category,
         price: price,
         stock: stock,
       );
 
-      widget.onProductSaved(product); // Llamar al callback
-
-      String message = widget.initialProduct != null ? 'Producto actualizado' : 'Producto registrado';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$message: "$name"')),
-      );
-
-      // Limpiar campos después de guardar solo si no estamos editando
-      // O si la edición fue exitosa y queremos limpiar para un nuevo registro.
-      // Por ahora, siempre limpiamos y cerramos.
-      _formKey.currentState!.reset();
-      _nameController.clear();
-      _categoryController.clear();
-      _priceController.clear();
-      _stockController.clear();
-
-      // Regresar a la pantalla anterior
-      Navigator.pop(context);
+      widget.onProductSaved(product);
+      Navigator.pop(context); // Cerrar el diálogo después de guardar
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final inputDecoration = InputDecoration(
-      labelStyle: TextStyle(color: widget.darkMode ? Colors.white70 : Colors.black54),
-      enabledBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: widget.darkMode ? Colors.white54 : Colors.black38),
+    return AlertDialog(
+      backgroundColor: widget.darkMode ? Colors.grey[850] : Colors.white,
+      title: Text(
+        widget.initialProduct == null ? 'Agregar Producto' : 'Editar Producto',
+        style: TextStyle(color: widget.darkMode ? Colors.white : Colors.blue[700]),
       ),
-      focusedBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: widget.darkMode ? Colors.blueAccent : Colors.blue),
-      ),
-      errorBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: widget.darkMode ? Colors.redAccent : Colors.red),
-      ),
-      focusedErrorBorder: UnderlineInputBorder(
-        borderSide: BorderSide(color: widget.darkMode ? Colors.redAccent : Colors.red, width: 2.0),
-      ),
-    );
-    // final inputDecoration = InputDecoration(...); // Ya no es necesario aquí
-    // final textStyle = TextStyle(color: widget.darkMode ? Colors.white : Colors.black); // Ya no es necesario aquí
-
-    return Scaffold(
-      backgroundColor: widget.darkMode ? const Color.fromARGB(255, 49, 49, 49) : Colors.white,
-      appBar: AppBar(
-        title: const Text('Registrar Producto', style: TextStyle(color: Colors.white)),
-        backgroundColor: widget.darkMode ? Colors.grey[850] : Colors.blue,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      content: SingleChildScrollView(
         child: Form(
           key: _formKey,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               CustomFormField(
@@ -126,11 +91,10 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
                   return null;
                 },
               ),
-              // const SizedBox(height: 16), // El CustomFormField ya tiene padding vertical
               CustomFormField(
                 controller: _categoryController,
                 labelText: 'Categoría',
-                hintText: 'Ej. Proteína, Pre-entreno, Creatina',
+                hintText: 'Ej. Proteína, Pre-entreno',
                 darkMode: widget.darkMode,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -139,7 +103,6 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
                   return null;
                 },
               ),
-              // const SizedBox(height: 16),
               CustomFormField(
                 controller: _priceController,
                 labelText: 'Precio (MXN)',
@@ -158,7 +121,6 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
                   return null;
                 },
               ),
-              // const SizedBox(height: 16),
               CustomFormField(
                 controller: _stockController,
                 labelText: 'Cantidad Disponible (Stock)',
@@ -177,22 +139,26 @@ class _ProductRegistrationScreenState extends State<ProductRegistrationScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24), // Ajustar el espaciado antes del botón
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: widget.darkMode ? Colors.teal : Colors.blue,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontSize: 16, color: Colors.white),
-                ).copyWith(
-                  foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
-                ),
-                onPressed: _saveProduct,
-                child: const Text('Guardar Producto'),
-              ),
             ],
           ),
         ),
       ),
+      actions: <Widget>[
+        TextButton(
+          child: Text('Cancelar', style: TextStyle(color: widget.darkMode ? Colors.redAccent[100] : Colors.red)),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.darkMode ? Colors.teal : Colors.blue,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: _saveProduct,
+          child: Text(widget.initialProduct == null ? 'Guardar Producto' : 'Actualizar Producto'),
+        ),
+      ],
     );
   }
 }
