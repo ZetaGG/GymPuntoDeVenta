@@ -25,10 +25,35 @@ class MainApp extends StatelessWidget {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-    ]);
-    return const GetMaterialApp(
+    ]);    return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      home: GymManagementScreen(),
+      theme: ThemeData(
+        brightness: Brightness.light,
+        primarySwatch: Colors.blue,
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+      ),      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.blue,
+        scaffoldBackgroundColor: Colors.grey[900],
+        canvasColor: Colors.grey[900],
+        cardColor: Colors.grey[800],
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.grey[850],
+          foregroundColor: Colors.white,
+        ),
+        colorScheme: ColorScheme.dark(
+          background: Colors.grey[900]!,
+          surface: Colors.grey[800]!,
+          primary: Colors.blue,
+          secondary: Colors.teal,
+        ),
+      ),
+      themeMode: ThemeMode.system, // Se adapta al tema del sistema
+      home: const GymManagementScreen(),
     );
   }
 }

@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart'; // Import fl_chart
 import 'package:gym_punto_venta/functions/funtions.dart'; // Assuming GymManagementFunctions is here
 import 'package:intl/intl.dart'; // For date formatting
-
-// Enum for time period selection
-enum TimePeriod { lastMonth, last6Months, lastYear }
+import 'package:gym_punto_venta/database/database_helper.dart'; // Import TimePeriod from here
+import 'dart:math' show max; // Import max function
 
 class BalanceDashboardWidget extends StatefulWidget {
   final GymManagementFunctions functions;
@@ -25,21 +24,11 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
   Map<String, double>? _financialSummary;
   bool _isLoading = true;
   TimePeriod _selectedPeriod = TimePeriod.lastMonth; // Default period
-
   // Data for charts
   List<FlSpot> _salesData = []; // For overall sales (Line/Bar)
-  List<dynamic> _rawSalesDetailsForTitles = []; // Store raw data for x-axis title formatting
   List<PieChartSectionData> _customerCategoryData = []; // For customer distribution (Pie)
   List<BarChartGroupData> _productSalesData = []; // For product sales (Bar)
-  List<dynamic> _rawProductSalesDetailsForTitles = []; // Store raw data for product sales chart x-axis
   List<FlSpot> _clientTrafficData = []; // For client traffic (Line/Bar)
-  List<dynamic> _rawClientTrafficDetailsForTitles = []; // Store raw data for client traffic chart x-axis
-
-  // Titles for charts (dynamic based on period)
-  String _salesChartTitle = '';
-  String _customerChartTitle = '';
-  String _productSalesChartTitle = '';
-  String _clientTrafficChartTitle = '';
 
   @override
   void initState() {
@@ -49,24 +38,19 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
 
   Future<void> _fetchDataForSelectedPeriod() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
-    try {
+    setState(() => _isLoading = true);    try {
       DateTime endDate = DateTime.now();
       DateTime startDate;
-      String periodString = '';
 
       switch (_selectedPeriod) {
         case TimePeriod.lastMonth:
           startDate = DateTime(endDate.year, endDate.month - 1, endDate.day);
-          periodString = 'Último Mes';
           break;
         case TimePeriod.last6Months:
           startDate = DateTime(endDate.year, endDate.month - 6, endDate.day);
-          periodString = 'Últimos 6 Meses';
           break;
         case TimePeriod.lastYear:
           startDate = DateTime(endDate.year - 1, endDate.month, endDate.day);
-          periodString = 'Último Año';
           break;
       }
 
@@ -83,24 +67,14 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
       final processedSalesData = _processSalesDataToFlSpot(rawSalesDetails, _selectedPeriod);
       final processedCustomerData = _processCustomerDataToPieChartData(rawCustomerData);
       final processedProductSalesData = _processProductSalesToBarData(rawProductSalesDetails, _selectedPeriod);
-      final processedTrafficData = _processTrafficDataToFlSpot(rawTrafficData, _selectedPeriod);
-
-      if (!mounted) return;
+      final processedTrafficData = _processTrafficDataToFlSpot(rawTrafficData, _selectedPeriod);      if (!mounted) return;
       setState(() {
-        _rawSalesDetailsForTitles = rawSalesDetails;
-        _rawProductSalesDetailsForTitles = rawProductSalesDetails;
-        _rawClientTrafficDetailsForTitles = rawTrafficData; // Store raw data for client traffic titles
         _salesData = processedSalesData;
         _customerCategoryData = processedCustomerData;
         _productSalesData = processedProductSalesData;
         _clientTrafficData = processedTrafficData;
 
         _financialSummary = summary;
-
-        _salesChartTitle = 'Ventas Totales ($periodString)';
-        _customerChartTitle = 'Distribución de Clientes ($periodString)';
-        _productSalesChartTitle = 'Ventas de Productos ($periodString)';
-        _clientTrafficChartTitle = 'Tráfico de Clientes ($periodString)';
 
         _isLoading = false;
       });
@@ -112,7 +86,6 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
       );
     }
   }
-
   String _getPeriodLabel(TimePeriod period) {
     switch (period) {
       case TimePeriod.lastMonth:
@@ -121,8 +94,6 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
         return 'Últimos 6 Meses';
       case TimePeriod.lastYear:
         return 'Último Año';
-      default: // Should not happen
-        return '';
     }
   }
 
@@ -151,54 +122,6 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
     print("Processed sales spots: $spots");
     return spots;
   }
-
-  String _getTooltipDate(int index, List<dynamic> rawData, TimePeriod period) {
-    if (index >= 0 && index < rawData.length) {
-      var entry = rawData[index] as Map<String, dynamic>;
-      String timeGroup = entry['time_group']; // 'YYYY-MM-DD' or 'YYYY-MM'
-      try {
-        if (period == TimePeriod.lastMonth) { // Daily
-          DateTime date = DateFormat('yyyy-MM-dd').parse(timeGroup);
-          return DateFormat('dd MMM yyyy').format(date);
-        } else { // Monthly
-          DateTime date = DateFormat('yyyy-MM').parse(timeGroup);
-          return DateFormat('MMM yyyy').format(date);
-        }
-      } catch (e) {
-        return timeGroup; // Fallback to raw time_group string
-      }
-    }
-    return '';
-  }
-
-  // Helper function to format bottom titles (dates) - can be enhanced
-  Widget bottomTitleWidgets(double value, TitleMeta meta, List<dynamic> rawData, TimePeriod period) {
-    const style = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 10,
-    );
-    String text = '';
-    int index = value.toInt();
-
-    if (index >= 0 && index < rawData.length) {
-      var entry = rawData[index] as Map<String, dynamic>;
-      String timeGroup = entry['time_group']; // 'YYYY-MM-DD' or 'YYYY-MM'
-      try {
-        if (period == TimePeriod.lastMonth) { // Daily
-          DateTime date = DateFormat('yyyy-MM-dd').parse(timeGroup);
-          text = DateFormat('dd').format(date); // Show day number
-        } else { // Monthly
-          DateTime date = DateFormat('yyyy-MM').parse(timeGroup);
-          text = DateFormat('MMM').format(date); // Show month abbreviation
-        }
-      } catch (e) {
-        text = ''; // Fallback if parsing fails
-      }
-    }
-    return SideTitleWidget(axisSide: meta.axisSide, space: 4, child: Text(text, style: style));
-  }
-
-
   List<PieChartSectionData> _processCustomerDataToPieChartData(List<dynamic> rawData) {
     // TODO: Implement actual data transformation.
     // rawData is expected to be List<Map<String, dynamic>>:
@@ -300,449 +223,560 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
     print("Processed client traffic spots: $spots");
     return spots;
   }
-
   @override
   Widget build(BuildContext context) {
     final textColor = widget.darkMode ? Colors.white : Colors.black;
+    final screenSize = MediaQuery.of(context).size;
+    final chartWidth = screenSize.width * 0.42; // 42% de ancho para cada gráfica
+    final chartHeight = screenSize.height * 0.35; // 35% de altura para cada gráfica
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Balance Financiero', // Title can be more generic now
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
-              ),
-              IconButton(
-                icon: Icon(Icons.refresh, color: textColor),
-                onPressed: _fetchDataForSelectedPeriod, // Updated to new method
-                tooltip: 'Actualizar',
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Time Period Selector Chips
-          Wrap(
-            spacing: 8.0,
-            children: TimePeriod.values.map((period) {
-              return ChoiceChip(
-                label: Text(_getPeriodLabel(period)),
-                selected: _selectedPeriod == period,
-                onSelected: (bool selected) {
-                  if (selected) {
-                    setState(() {
-                      _selectedPeriod = period;
-                      _fetchDataForSelectedPeriod(); // Refetch data for the new period
-                    });
-                  }
-                },
-                selectedColor: Theme.of(context).primaryColor,
-                labelStyle: TextStyle(
-                  color: _selectedPeriod == period
-                      ? (widget.darkMode ? Colors.black : Colors.white) // Ensure contrast for selected chip
-                      : textColor,
+    }    return Scaffold(
+      backgroundColor: widget.darkMode ? Colors.grey[850] : Colors.white,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Header con título y controles
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Dashboard Financiero',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
+                  ),
                 ),
-                backgroundColor: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
-                checkmarkColor: widget.darkMode ? Colors.black : Colors.white,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          // Existing financial summary (can be kept or integrated into charts)
-          if (_financialSummary == null && !_isLoading)
-            Center(child: Text('No hay datos financieros para mostrar.', style: TextStyle(color: textColor.withOpacity(0.7)))),
-          if (_financialSummary != null)
-          Card(
-            color: widget.darkMode ? Colors.grey[800] : Colors.white,
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+                IconButton(
+                  icon: Icon(Icons.refresh, color: textColor),
+                  onPressed: _fetchDataForSelectedPeriod,
+                  tooltip: 'Actualizar',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Selector de período
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: TimePeriod.values.map((period) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: Text(_getPeriodLabel(period), style: const TextStyle(fontSize: 12)),
+                      selected: _selectedPeriod == period,
+                      onSelected: (bool selected) {
+                        if (selected) {
+                          setState(() {
+                            _selectedPeriod = period;
+                            _fetchDataForSelectedPeriod();
+                          });
+                        }
+                      },
+                      selectedColor: Theme.of(context).primaryColor,
+                      labelStyle: TextStyle(
+                        color: _selectedPeriod == period
+                            ? (widget.darkMode ? Colors.black : Colors.white)
+                            : textColor,
+                      ),
+                      backgroundColor: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Resumen financiero compacto
+            if (_financialSummary != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12.0),                decoration: BoxDecoration(
+                  color: widget.darkMode ? Colors.grey[800] : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: widget.darkMode ? Colors.grey[600]! : Colors.grey[300]!,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildSummaryItem('Productos', _financialSummary?['productSales'] ?? 0, textColor),
+                    _buildSummaryItem('Membresías', _financialSummary?['membershipRevenue'] ?? 0, textColor),
+                    _buildSummaryItem('Total', _financialSummary?['totalRevenue'] ?? 0, textColor),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+
+            // Grid de gráficas 2x2
+            Expanded(
+              child: Row(
                 children: [
-                  Text('Ventas Productos: \$${_financialSummary?['productSales']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(color: textColor, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Text('Ingresos Membresías: \$${_financialSummary?['membershipRevenue']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(color: textColor, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  const Divider(),
-                  Text('Ingresos Totales: \$${_financialSummary?['totalRevenue']?.toStringAsFixed(2) ?? '0.00'}', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                  // Columna izquierda
+                  Expanded(
+                    child: Column(
+                      children: [
+                        // Gráfica 1: Esquina superior izquierda - Ventas Totales
+                        Expanded(
+                          child: _buildChartContainer(
+                            title: 'Ventas',
+                            child: _buildSalesChart(chartWidth, chartHeight * 0.8),
+                            textColor: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Gráfica 3: Esquina inferior izquierda - Ventas de Productos
+                        Expanded(
+                          child: _buildChartContainer(
+                            title: 'Productos',
+                            child: _buildProductSalesChart(chartWidth, chartHeight * 0.8),
+                            textColor: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Columna derecha
+                  Expanded(
+                    child: Column(
+                      children: [
+                        // Gráfica 2: Esquina superior derecha - Distribución de Clientes
+                        Expanded(
+                          child: _buildChartContainer(
+                            title: 'Clientes',
+                            child: _buildCustomerChart(chartWidth, chartHeight * 0.8),
+                            textColor: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Gráfica 4: Esquina inferior derecha - Tráfico de Clientes
+                        Expanded(
+                          child: _buildChartContainer(
+                            title: 'Tráfico',
+                            child: _buildClientTrafficChart(chartWidth, chartHeight * 0.8),
+                            textColor: textColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 30),
-
-          // --- Sales Chart ---
-          Text(
-            _salesChartTitle,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
-          ),
-          const SizedBox(height: 10),
-          AspectRatio(
-            aspectRatio: 1.7, // Adjust as needed
-            child: Card(
-              elevation: widget.darkMode ? 1 : 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              color: widget.darkMode ? Colors.grey[850] : Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 20, top: 20, bottom: 10, left: 10),
-                child: _salesData.isEmpty
-                    ? Center(child: Text('No hay datos de ventas para mostrar.', style: TextStyle(color: textColor.withOpacity(0.7))))
-                    : LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            horizontalInterval: _salesData.map((e) => e.y).reduce(max) / 5 > 0 ? _salesData.map((e) => e.y).reduce(max) / 5 : 1, // Adjust interval
-                            verticalInterval: 1, // Adjust interval
-                            getDrawingHorizontalLine: (value) {
-                              return FlLine(
-                                color: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
-                                strokeWidth: 1,
-                              );
-                            },
-                            getDrawingVerticalLine: (value) {
-                              return FlLine(
-                                color: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
-                                strokeWidth: 1,
-                              );
-                            },
-                          ),
-                          titlesData: FlTitlesData(
-                            show: true,
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 22,
-                                interval: 1, // Show label for each spot
-                                getTitlesWidget: (value, meta) => bottomTitleWidgets(value, meta, _rawSalesDetailsForTitles, _selectedPeriod),
-                              ),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40, // Adjust space for labels
-                                getTitlesWidget: (value, meta) {
-                                  return Text(NumberFormat.compact().format(value), style: TextStyle(fontSize: 10, color: textColor), textAlign: TextAlign.left);
-                                },
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border.all(color: widget.darkMode ? Colors.grey[700]! : Colors.grey[400]!),
-                          ),
-                          minX: 0,
-                          maxX: _salesData.length.toDouble() -1, // Based on index
-                          minY: 0,
-                          // maxY: Calculate max Y based on data for better scaling
-                          maxY: _salesData.isEmpty ? 10 : _salesData.map((e) => e.y).reduce(max) * 1.2, // Add some padding
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: _salesData,
-                              isCurved: true,
-                              gradient: LinearGradient(
-                                colors: [Theme.of(context).primaryColor.withOpacity(0.5), Theme.of(context).primaryColor],
-                              ),
-                              barWidth: 3,
-                              isStrokeCapRound: true,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Theme.of(context).primaryColor.withOpacity(0.3),
-                                    Theme.of(context).primaryColor.withOpacity(0.0)
-                                  ],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                ),
-                              ),
-                            ),
-                          ],
-                          lineTouchData: LineTouchData( // Basic tooltip
-                            touchTooltipData: LineTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
-                              getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
-                                return touchedBarSpots.map((barSpot) {
-                                  final flSpot = barSpot;
-                                  return LineTooltipItem(
-                                    '${NumberFormat.currency(symbol: '\$').format(flSpot.y)}\n',
-                                    TextStyle(color: widget.darkMode ? Colors.white : Theme.of(context).primaryColor, fontWeight: FontWeight.bold),
-                                    children: [
-                                      TextSpan(
-                                        text: _getTooltipDate(flSpot.x.toInt(), _rawSalesDetailsForTitles, _selectedPeriod),
-                                        style: TextStyle(
-                                          color: widget.darkMode ? Colors.grey[400] : Colors.grey[700],
-                                          fontWeight: FontWeight.normal,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ]
-                                  );
-                                }).toList();
-                              }
-                            )
-                          ),
-                          extraLinesData: ExtraLinesData(horizontalLines: [ // Example: average line
-                            // if (_salesData.isNotEmpty)
-                            //   HorizontalLine(
-                            //     y: _salesData.map((e) => e.y).reduce((a, b) => a + b) / _salesData.length,
-                            //     color: Colors.red.withOpacity(0.8),
-                            //     strokeWidth: 2,
-                            //     dashArray: [5, 5],
-                            //     label: HorizontalLineLabel(
-                            //       show: true,
-                            //       labelResolver: (line) => 'Avg: ${NumberFormat.compactCurrency(symbol: '\$').format(line.y)}',
-                            //       style: TextStyle(color: Colors.white, backgroundColor: Colors.red.withOpacity(0.8)),
-                            //     )
-                            //   ),
-                          ]),
-                        ),
-                        duration: const Duration(milliseconds: 250), // Animation duration
-                      ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 30),
-          Text(
-            _customerChartTitle,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
-          ),
-          const SizedBox(height: 10),
-          AspectRatio(
-            aspectRatio: 1.5, // Adjust as needed, Pie charts can be more square
-            child: Card(
-              elevation: widget.darkMode ? 1 : 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              color: widget.darkMode ? Colors.grey[850] : Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: _customerCategoryData.isEmpty
-                    ? Center(child: Text('No hay datos de clientes para mostrar.', style: TextStyle(color: textColor.withOpacity(0.7))))
-                    : PieChart(
-                        PieChartData(
-                          pieTouchData: PieTouchData(
-                            touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                              // TODO: Handle touch events for interactivity if needed
-                            },
-                          ),
-                          borderData: FlBorderData(show: false),
-                          sectionsSpace: 2, // Space between sections
-                          centerSpaceRadius: 40, // Radius of the center hole
-                          sections: _customerCategoryData,
-                          startDegreeOffset: -90, // Start sections from the top
-                        ),
-                        swapAnimationDuration: const Duration(milliseconds: 250), // Optional
-                        swapAnimationCurve: Curves.easeInOut, // Optional
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-
-          // Placeholder for Product Sales Chart
-          Text(
-            _productSalesChartTitle,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
-          ),
-          const SizedBox(height: 10),
-          AspectRatio(
-            aspectRatio: 1.7, // Adjust as needed
-            child: Card(
-              elevation: widget.darkMode ? 1 : 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              color: widget.darkMode ? Colors.grey[850] : Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 20, top: 20, bottom: 10, left: 10),
-                child: _productSalesData.isEmpty
-                    ? Center(child: Text('No hay datos de ventas de productos.', style: TextStyle(color: textColor.withOpacity(0.7))))
-                    : BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.spaceAround,
-                          maxY: _productSalesData.isEmpty ? 10 : _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) * 1.2, // Calculate max Y
-                          minY: 0,
-                          barTouchData: BarTouchData(
-                            touchTooltipData: BarTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
-                              getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                String weekDay;
-                                // Assuming bottomTitleWidgets can be adapted or a similar one created for product chart
-                                // For now, just show groupIndex or find a way to get 'time_group'
-                                // weekDay = 'Day ${group.x.toInt() + 1}';
-                                return BarTooltipItem(
-                                  '${NumberFormat.currency(symbol: '\$').format(rod.toY)}\n',
-                                  TextStyle(color: widget.darkMode ? Colors.white : Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold),
-                                  // children: <TextSpan>[
-                                  //   TextSpan(
-                                  //     text: weekDay, // TODO: Get actual date string
-                                  //     style: TextStyle(
-                                  //       color: Colors.grey[600],
-                                  //       fontSize: 14,
-                                  //       fontWeight: FontWeight.w500,
-                                  //     ),
-                                  //   ),
-                                  // ],
-                                );
-                              },
-                            ),
-                          ),
-                          titlesData: FlTitlesData(
-                            show: true,
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 22,
-                                interval: 1,
-                                getTitlesWidget: (value, meta) => bottomTitleWidgets(value, meta, _rawProductSalesDetailsForTitles, _selectedPeriod),
-                              ),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
-                                getTitlesWidget: (value, meta) {
-                                   return Text(NumberFormat.compact().format(value), style: TextStyle(fontSize: 10, color: textColor), textAlign: TextAlign.left);
-                                },
-                              ),
-                            ),
-                          ),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false, // Cleaner look for bar chart
-                            horizontalInterval: _productSalesData.isEmpty ? 1 : _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) / 5 > 0
-                                                ? _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) / 5
-                                                : 1,
-                            getDrawingHorizontalLine: (value) {
-                              return FlLine(
-                                color: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
-                                strokeWidth: 1,
-                              );
-                            },
-                          ),
-                          borderData: FlBorderData(
-                             show: true,
-                             border: Border.all(color: widget.darkMode ? Colors.grey[700]! : Colors.grey[400]!),
-                          ),
-                          barGroups: _productSalesData,
-                        ),
-                        swapAnimationDuration: const Duration(milliseconds: 250),
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-
-          // Placeholder for Client Traffic Chart
-          Text(
-            _clientTrafficChartTitle,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
-          ),
-          const SizedBox(height: 10),
-          AspectRatio(
-            aspectRatio: 1.7, // Adjust as needed
-            child: Card(
-              elevation: widget.darkMode ? 1 : 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              color: widget.darkMode ? Colors.grey[850] : Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 20, top: 20, bottom: 10, left: 10),
-                child: _clientTrafficData.isEmpty
-                    ? Center(child: Text('No hay datos de tráfico de clientes.', style: TextStyle(color: textColor.withOpacity(0.7))))
-                    : LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            horizontalInterval: _clientTrafficData.map((e) => e.y).reduce(max) / 5 > 0 ? _clientTrafficData.map((e) => e.y).reduce(max) / 5 : 1,
-                            verticalInterval: 1,
-                            getDrawingHorizontalLine: (value) => FlLine(color: widget.darkMode ? Colors.grey[700] : Colors.grey[300], strokeWidth: 1),
-                            getDrawingVerticalLine: (value) => FlLine(color: widget.darkMode ? Colors.grey[700] : Colors.grey[300], strokeWidth: 1),
-                          ),
-                          titlesData: FlTitlesData(
-                            show: true,
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 22,
-                                interval: 1,
-                                getTitlesWidget: (value, meta) => bottomTitleWidgets(value, meta, _rawClientTrafficDetailsForTitles, _selectedPeriod),
-                              ),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 30, // Adjusted for potentially smaller numbers
-                                getTitlesWidget: (value, meta) {
-                                  return Text(value.toInt().toString(), style: TextStyle(fontSize: 10, color: textColor), textAlign: TextAlign.left);
-                                },
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: true, border: Border.all(color: widget.darkMode ? Colors.grey[700]! : Colors.grey[400]!)),
-                          minX: 0,
-                          maxX: _clientTrafficData.length.toDouble() -1,
-                          minY: 0,
-                          maxY: _clientTrafficData.isEmpty ? 10 : _clientTrafficData.map((e) => e.y).reduce(max) * 1.2,
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: _clientTrafficData,
-                              isCurved: true,
-                              gradient: LinearGradient(colors: [Colors.green.shade700.withOpacity(0.5), Colors.green.shade700]),
-                              barWidth: 3,
-                              isStrokeCapRound: true,
-                              dotData: const FlDotData(show: false),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                gradient: LinearGradient(
-                                  colors: [Colors.green.shade700.withOpacity(0.3), Colors.green.shade700.withOpacity(0.0)],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                ),
-                              ),
-                            ),
-                          ],
-                          lineTouchData: LineTouchData(
-                            touchTooltipData: LineTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
-                              getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
-                                return touchedBarSpots.map((barSpot) {
-                                  return LineTooltipItem(
-                                    '${barSpot.y.toInt()} clientes\n', // Assuming y is count
-                                    TextStyle(color: widget.darkMode ? Colors.white : Colors.green.shade900, fontWeight: FontWeight.bold),
-                                  );
-                                }).toList();
-                              }
-                            )
-                          ),
-                        ),
-                        duration: const Duration(milliseconds: 250),
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          // ElevatedButton.icon(
-          //   icon: const Icon(Icons.refresh),
-          //   label: const Text('Actualizar'),
-          //   onPressed: _fetchFinancialData,
-          // ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildSummaryItem(String label, double value, Color textColor) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: textColor.withOpacity(0.7)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '\$${value.toStringAsFixed(0)}',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChartContainer({
+    required String title,
+    required Widget child,
+    required Color textColor,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        // Funcionalidad para ampliar la gráfica (opcional)
+        _showExpandedChart(title, child);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8.0),        decoration: BoxDecoration(
+          color: widget.darkMode ? Colors.grey[800] : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: widget.darkMode ? Colors.grey[600]! : Colors.grey[300]!,
+            width: 1,
+          ),
+          boxShadow: widget.darkMode ? [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ] : [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+  void _showExpandedChart(String title, Widget chart) {
+    showDialog(
+      context: context,      builder: (context) => Dialog(
+        backgroundColor: widget.darkMode ? Colors.grey[850] : Colors.white,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.7,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: widget.darkMode ? Colors.grey[850] : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: widget.darkMode ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      color: widget.darkMode ? Colors.white : Colors.black,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(child: chart),
+            ],
+          ),        ),
+      ),
+    );
+  }
+
+  // Métodos para construir cada gráfica con tamaño optimizado
+  Widget _buildSalesChart(double width, double height) {
+    if (_salesData.isEmpty) {
+      return Center(
+        child: Text(
+          'Sin datos',
+          style: TextStyle(
+            color: widget.darkMode ? Colors.white70 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: _salesData.map((e) => e.y).reduce(max) / 3,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: widget.darkMode ? Colors.grey[700]! : Colors.grey[300]!,
+            strokeWidth: 0.5,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 25,
+              interval: _salesData.map((e) => e.y).reduce(max) / 2,
+              getTitlesWidget: (value, meta) => Text(
+                NumberFormat.compact().format(value),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: widget.darkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: _salesData.length.toDouble() - 1,
+        minY: 0,
+        maxY: _salesData.map((e) => e.y).reduce(max) * 1.2,
+        lineBarsData: [
+          LineChartBarData(
+            spots: _salesData,
+            isCurved: true,
+            color: Theme.of(context).primaryColor,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor.withOpacity(0.3),
+                  Theme.of(context).primaryColor.withOpacity(0.0)
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (touchedSpot) => widget.darkMode ? Colors.grey[800]! : Colors.white,
+            getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+              return touchedBarSpots.map((barSpot) {
+                return LineTooltipItem(
+                  NumberFormat.currency(symbol: '\$').format(barSpot.y),
+                  TextStyle(
+                    color: widget.darkMode ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerChart(double width, double height) {
+    if (_customerCategoryData.isEmpty) {
+      return Center(
+        child: Text(
+          'Sin datos',
+          style: TextStyle(
+            color: widget.darkMode ? Colors.white70 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return PieChart(
+      PieChartData(
+        sections: _customerCategoryData.map((section) {
+          return PieChartSectionData(
+            color: section.color,
+            value: section.value,
+            title: '${(section.value / _customerCategoryData.map((s) => s.value).reduce((a, b) => a + b) * 100).toStringAsFixed(0)}%',
+            radius: 40,
+            titleStyle: const TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          );
+        }).toList(),
+        centerSpaceRadius: 20,
+        sectionsSpace: 1,
+      ),
+    );
+  }
+
+  Widget _buildProductSalesChart(double width, double height) {
+    if (_productSalesData.isEmpty) {
+      return Center(
+        child: Text(
+          'Sin datos',
+          style: TextStyle(
+            color: widget.darkMode ? Colors.white70 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) * 1.2,
+        minY: 0,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) / 3,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: widget.darkMode ? Colors.grey[700]! : Colors.grey[300]!,
+            strokeWidth: 0.5,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 25,
+              getTitlesWidget: (value, meta) => Text(
+                NumberFormat.compact().format(value),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: widget.darkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: _productSalesData.map((group) {
+          return BarChartGroupData(
+            x: group.x,
+            barRods: group.barRods.map((rod) {
+              return BarChartRodData(
+                toY: rod.toY,
+                color: Theme.of(context).colorScheme.secondary,
+                width: 8,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(2),
+                  topRight: Radius.circular(2),
+                ),
+              );
+            }).toList(),
+          );
+        }).toList(),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => widget.darkMode ? Colors.grey[800]! : Colors.white,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                NumberFormat.currency(symbol: '\$').format(rod.toY),
+                TextStyle(
+                  color: widget.darkMode ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClientTrafficChart(double width, double height) {
+    if (_clientTrafficData.isEmpty) {
+      return Center(
+        child: Text(
+          'Sin datos',
+          style: TextStyle(
+            color: widget.darkMode ? Colors.white70 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: _clientTrafficData.map((e) => e.y).reduce(max) / 3,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: widget.darkMode ? Colors.grey[700]! : Colors.grey[300]!,
+            strokeWidth: 0.5,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 25,
+              interval: _clientTrafficData.map((e) => e.y).reduce(max) / 2,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: widget.darkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: _clientTrafficData.length.toDouble() - 1,
+        minY: 0,
+        maxY: _clientTrafficData.map((e) => e.y).reduce(max) * 1.2,        lineBarsData: [
+          LineChartBarData(
+            spots: _clientTrafficData,
+            isCurved: true,
+            color: Colors.teal.shade600,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.teal.shade600.withOpacity(0.3),
+                  Colors.teal.shade600.withOpacity(0.0)
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (touchedSpot) => widget.darkMode ? Colors.grey[800]! : Colors.white,
+            getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+              return touchedBarSpots.map((barSpot) {
+                return LineTooltipItem(
+                  '${barSpot.y.toInt()} clientes',
+                  TextStyle(
+                    color: widget.darkMode ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ),
+      ),    );  }
 }
