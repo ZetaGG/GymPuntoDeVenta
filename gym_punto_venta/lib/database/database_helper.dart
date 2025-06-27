@@ -506,4 +506,146 @@ class DatabaseHelper {
     }
     return 0.0;
   }
+
+  // --- Methods for Chart Data ---
+
+  // Helper to get date format string and grouping strftime format based on period
+  Map<String, String> _getDateTimeGroupFormat(TimePeriod period, String dateColumn) {
+    switch (period) {
+      case TimePeriod.lastMonth: // Group by day for the last month
+        return {'format': '%Y-%m-%d', 'labelFormat': 'dd MMM'};
+      case TimePeriod.last6Months: // Group by month
+      case TimePeriod.lastYear: // Group by month
+        return {'format': '%Y-%m', 'labelFormat': 'MMM yyyy'};
+      default: // Default to month
+        return {'format': '%Y-%m', 'labelFormat': 'MMM yyyy'};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAggregatedSalesOverTime(DateTimeRange dateRange, TimePeriod period) async {
+    final db = await database;
+    final grouping = _getDateTimeGroupFormat(period, 'date');
+    final String dateGroupFormat = grouping['format']!;
+
+    // Combine Membership Income and Product Sales
+    // For simplicity, this example focuses on membership income. Product sales would need a similar query on 'sales' table.
+    final query = '''
+      SELECT
+        strftime('$dateGroupFormat', date) as time_group,
+        SUM(amount) as total_sales
+      FROM Income
+      WHERE date BETWEEN ? AND ? AND type = 'Membership'
+      GROUP BY time_group
+      ORDER BY time_group ASC
+    '''; // TODO: Add product sales from 'sales' table
+
+    final List<Map<String, dynamic>> result = await db.rawQuery(query, [
+      dateRange.start.toIso8601String(),
+      dateRange.end.toIso8601String(),
+    ]);
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>> getAggregatedProductSalesOverTime(DateTimeRange dateRange, TimePeriod period) async {
+    final db = await database;
+    final grouping = _getDateTimeGroupFormat(period, 'sale_date');
+    final String dateGroupFormat = grouping['format']!;
+
+    final query = '''
+      SELECT
+        strftime('$dateGroupFormat', sale_date) as time_group,
+        SUM(total_amount) as total_product_sales
+      FROM sales
+      WHERE sale_date BETWEEN ? AND ?
+      GROUP BY time_group
+      ORDER BY time_group ASC
+    ''';
+
+    final List<Map<String, dynamic>> result = await db.rawQuery(query, [
+      dateRange.start.toIso8601String(),
+      dateRange.end.toIso8601String(),
+    ]);
+    return result;
+  }
+
+
+  Future<List<Map<String, dynamic>>> getCustomerCountsByMembershipType(DateTimeRange dateRange) async {
+    final db = await database;
+    // This query counts clients whose membership was active at any point during the dateRange.
+    // A client is active if their start_date is before the range_end AND their end_date is after the range_start.
+    final query = '''
+      SELECT
+        M.name as membership_name,
+        COUNT(C.id) as client_count
+      FROM Clients C
+      JOIN Memberships M ON C.membership_type_id = M.id
+      WHERE C.start_date <= ? AND C.end_date >= ? -- Active during the period
+      GROUP BY M.name
+      ORDER BY client_count DESC
+    ''';
+    final List<Map<String, dynamic>> result = await db.rawQuery(query, [
+      dateRange.end.toIso8601String(),
+      dateRange.start.toIso8601String(),
+    ]);
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>> getClientActivityOverTime(DateTimeRange dateRange, TimePeriod period) async {
+    final db = await database;
+    final grouping = _getDateTimeGroupFormat(period, 'date');
+    final String dateGroupFormat = grouping['format']!;
+
+    // Counts income entries of type 'Membership' or 'Visit Fee' as proxies for client activity.
+    // This could be refined if there's a more direct way to log visits.
+    final query = '''
+      SELECT
+        strftime('$dateGroupFormat', date) as time_group,
+        COUNT(DISTINCT related_client_id) as active_clients
+      FROM Income
+      WHERE date BETWEEN ? AND ? AND (type = 'Membership' OR type = 'Visit Fee') AND related_client_id IS NOT NULL
+      GROUP BY time_group
+      ORDER BY time_group ASC
+    ''';
+    final List<Map<String, dynamic>> result = await db.rawQuery(query, [
+      dateRange.start.toIso8601String(),
+      dateRange.end.toIso8601String(),
+    ]);
+    return result;
+  }
+
+  Future<Map<String, double>> getFinancialSummaryForDateRange(DateTimeRange dateRange) async {
+    final db = await database;
+    final String startDateStr = dateRange.start.toIso8601String();
+    final String endDateStr = dateRange.end.toIso8601String();
+
+    final productSalesResult = await db.rawQuery(
+      "SELECT SUM(total_amount) as total FROM sales WHERE sale_date BETWEEN ? AND ?",
+      [startDateStr, endDateStr],
+    );
+    double productSales = 0.0;
+    if (productSalesResult.isNotEmpty && productSalesResult.first['total'] != null) {
+      productSales = (productSalesResult.first['total'] as num).toDouble();
+    }
+
+    final membershipRevenueResult = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM Income WHERE type = 'Membership' AND date BETWEEN ? AND ?",
+      [startDateStr, endDateStr],
+    );
+    double membershipRevenue = 0.0;
+    if (membershipRevenueResult.isNotEmpty && membershipRevenueResult.first['total'] != null) {
+      membershipRevenue = (membershipRevenueResult.first['total'] as num).toDouble();
+    }
+
+    return {
+      'productSales': productSales,
+      'membershipRevenue': membershipRevenue,
+      'totalRevenue': productSales + membershipRevenue,
+    };
+  }
 }
+
+// Make sure TimePeriod enum is accessible here or duplicate it.
+// For now, assuming it's defined in a way that's accessible or will be passed.
+// If balance_dashboard_widget.dart is the only place it's defined,
+// you might need to pass it as a parameter or define it in a shared file.
+enum TimePeriod { lastMonth, last6Months, lastYear } // Temporary duplication for context
