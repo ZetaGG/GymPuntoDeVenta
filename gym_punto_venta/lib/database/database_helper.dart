@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Explicit FFI import
+import 'package:flutter/material.dart'; // Added import for DateTimeRange
 import '../models/clients.dart'; // Added import for Client model
 import '../models/product.dart'; // Added import for Product model
 
@@ -644,8 +645,5 @@ class DatabaseHelper {
   }
 }
 
-// Make sure TimePeriod enum is accessible here or duplicate it.
-// For now, assuming it's defined in a way that's accessible or will be passed.
-// If balance_dashboard_widget.dart is the only place it's defined,
-// you might need to pass it as a parameter or define it in a shared file.
-enum TimePeriod { lastMonth, last6Months, lastYear } // Temporary duplication for context
+// TimePeriod enum should be defined here as the single source of truth.
+enum TimePeriod { lastMonth, last6Months, lastYear }
