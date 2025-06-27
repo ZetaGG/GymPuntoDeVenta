@@ -476,6 +476,27 @@ class DatabaseHelper {
     );
   }
 
+  Future<List<String>> getDistinctCategories() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      TABLE_PRODUCTS,
+      distinct: true,
+      columns: ['category'],
+      orderBy: 'category ASC',
+    );
+
+    if (maps.isEmpty) {
+      return [];
+    }
+
+    List<String> categories = maps
+        .map((map) => map['category'] as String?)
+        .where((category) => category != null && category.trim().isNotEmpty)
+        .toList()
+        .cast<String>();
+    return categories;
+  }
+
   // Sales Table CRUD
   Future<void> insertSale(Map<String, dynamic> saleData) async {
     final db = await database;

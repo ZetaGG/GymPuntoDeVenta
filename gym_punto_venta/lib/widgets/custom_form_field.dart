@@ -9,6 +9,7 @@ class CustomFormField extends StatelessWidget {
   final TextInputType keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final String? hintText;
+  final bool autofocus;
 
   const CustomFormField({
     Key? key,
@@ -19,6 +20,7 @@ class CustomFormField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.inputFormatters,
     this.hintText,
+    this.autofocus = false,
   }) : super(key: key);
 
   @override
@@ -52,6 +54,7 @@ class CustomFormField extends StatelessWidget {
         validator: validator,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
+        autofocus: autofocus,
       ),
     );
   }
