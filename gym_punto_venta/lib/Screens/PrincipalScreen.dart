@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gym_punto_venta/widgets/statscard.dart';
-import 'package:gym_punto_venta/widgets/filter_button.dart';
 import 'package:gym_punto_venta/widgets/client_table.dart';
 // import 'package:gym_punto_venta/widgets/balane_view.dart'; // Eliminado: ya no se usa
 import 'package:gym_punto_venta/widgets/clients_stas_view.dart';
@@ -39,7 +37,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   bool _showStoreView = false; // Estado para alternar entre vista de Clientes y Tienda
   bool _showBalanceDashboard = false; // Estado para alternar a la vista de Balance
 
-  late GymManagementFunctions _functions;
+  GymManagementFunctions? _functions;
   bool _isLoadingCategories = true;
   // Key for Scaffold to show SnackBars from anywhere if needed, or pass context.
   // final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -47,7 +45,6 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProductCategories(); // Cargar categorías al iniciar
     _functions = GymManagementFunctions(
       context: context,
       darkMode: _darkMode, // Pass initial, it will update from DB
@@ -84,6 +81,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
       },
     );
     // loadGymData (which also calls loadProducts) is called in GymManagementFunctions constructor.
+    _loadProductCategories(); // Cargar categorías después de inicializar _functions
   }
 
   Future<void> _loadProductCategories() async {
@@ -92,22 +90,32 @@ class GymManagementScreenState extends State<GymManagementScreen> {
         _isLoadingCategories = true;
       });
     }
-    // Asegurarse que _functions está inicializada.
-    // Esto podría requerir esperar a que initState de _functions complete si getAvailableCategories depende de ello.
-    // Por ahora, asumimos que _functions está lista o que getAvailableCategories puede ser llamada.
-    // Una mejor solución podría ser hacer que _functions.loadGymData devuelva un Future y esperarlo.
-    // O que _functions tenga un callback para cuando esté completamente inicializado.
-    // Por simplicidad, llamaremos directamente.
-    if (mounted && _functions != null) { // Check if _functions is initialized
-        final categories = await _functions.getAvailableCategories();
+    
+    try {
+      if (_functions != null) {
+        final categories = await _functions!.getAvailableCategories();
         if (mounted) {
-            setState(() {
-                _productCategories = categories;
-                _isLoadingCategories = false;
-            });
+          setState(() {
+            _productCategories = categories;
+            _isLoadingCategories = false;
+          });
         }
-    } else if (mounted) { // Si _functions no está lista, reintentar después de un delay.
-        Future.delayed(const Duration(milliseconds: 100), _loadProductCategories);
+      } else {
+        if (mounted) {
+          setState(() {
+            _productCategories = [];
+            _isLoadingCategories = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _productCategories = [];
+          _isLoadingCategories = false;
+        });
+      }
     }
   }
 
@@ -150,8 +158,8 @@ class GymManagementScreenState extends State<GymManagementScreen> {
 
   // Updated to use GymManagementFunctions
   Future<void> _addProduct(Product product) async {
-    if (mounted) {
-      await _functions.addProduct(product); // This will also trigger the callback to update _products
+    if (mounted && _functions != null) {
+      await _functions!.addProduct(product); // This will also trigger the callback to update _products
       // After adding a product, reload categories in case a new one was added
       await _loadProductCategories();
       if(mounted){
@@ -164,11 +172,11 @@ class GymManagementScreenState extends State<GymManagementScreen> {
 
   // Nueva función para manejar la confirmación de la venta desde el diálogo
   Future<void> _confirmSale(Product product, int quantity) async {
-    if (mounted) {
+    if (mounted && _functions != null) {
       final currentProductInList = _products.firstWhere((p) => p.id == product.id, orElse: () => product);
 
       if (currentProductInList.stock >= quantity) {
-        await _functions.recordSale(currentProductInList, quantity);
+        await _functions!.recordSale(currentProductInList, quantity);
         // recordSale ya actualiza el stock y refresca la UI via callback
         // y debería manejar sus propios SnackBars de éxito/error.
         // Si queremos un SnackBar específico aquí:
@@ -213,9 +221,9 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   // This method is now for direct stock adjustments (e.g., from EditStockDialog)
   // It should call the modified updateProductStock in GymManagementFunctions
   void _updateProductStock(Product productToUpdate, int newStock) {
-    if (mounted) {
+    if (mounted && _functions != null) {
       // It's important that productToUpdate contains the correct ID.
-      _functions.updateProductStock(productToUpdate.id, newStock);
+      _functions!.updateProductStock(productToUpdate.id, newStock);
       // UI will update via callback.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Stock de ${productToUpdate.name} actualizado a $newStock.')),
@@ -255,24 +263,24 @@ class GymManagementScreenState extends State<GymManagementScreen> {
           padding: const EdgeInsets.all(4.0),
           child: CircleAvatar(
             backgroundColor: _darkMode ? Colors.grey[750] : Colors.blue[700],
-            backgroundImage: (_functions.gymLogoPath != null && _functions.gymLogoPath!.isNotEmpty)
-                ? FileImage(File(_functions.gymLogoPath!))
+            backgroundImage: (_functions!.gymLogoPath != null && _functions!.gymLogoPath!.isNotEmpty)
+                ? FileImage(File(_functions!.gymLogoPath!))
                 : null,
-            onBackgroundImageError: (_functions.gymLogoPath != null && _functions.gymLogoPath!.isNotEmpty)
+            onBackgroundImageError: (_functions!.gymLogoPath != null && _functions!.gymLogoPath!.isNotEmpty)
                 ? (exception, stackTrace) {
-                    print("Error loading AppBar logo: $exception. Path: ${_functions.gymLogoPath}");
+                    print("Error loading AppBar logo: $exception. Path: ${_functions!.gymLogoPath}");
                   }
                 : null,
-            child: (_functions.gymLogoPath == null || _functions.gymLogoPath!.isEmpty)
+            child: (_functions!.gymLogoPath == null || _functions!.gymLogoPath!.isEmpty)
                 ? const Icon(Icons.business_center, color: Colors.white)
                 : null,
           ),
         ),
-        title: Text(_functions.gymName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_functions!.gymName, style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           Padding( // Display License Status
             padding: const EdgeInsets.only(right: 8.0, top: 18.0), // Adjust padding as needed
-            child: Text(_functions.getLicenseDisplayStatus(), style: const TextStyle(fontSize: 12, color: Colors.white)),
+            child: Text(_functions!.getLicenseDisplayStatus(), style: const TextStyle(fontSize: 12, color: Colors.white)),
           ),
           IconButton(
             icon: const Icon(Icons.store, color: Colors.white),
@@ -302,7 +310,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             icon: Icon(_darkMode ? Icons.light_mode : Icons.dark_mode, color: Colors.white),
             tooltip: _darkMode ? 'Modo Claro' : 'Modo Oscuro',
             onPressed: () {
-              _functions.updateDarkMode(!_darkMode);
+              _functions!.updateDarkMode(!_darkMode);
             },
           ),
         ],
@@ -321,7 +329,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   label: const Text('Visita'),
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100],foregroundColor: _darkMode ? Colors.blue : Colors.blue),
                   onPressed: () async {
-                    await _functions.logVisitFeeAsIncome();
+                    await _functions!.logVisitFeeAsIncome();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Visit fee logged as income.')),
@@ -334,7 +342,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                   icon: const Icon(Icons.person_add),
                   label: const Text('Nuevo Cliente'),
                   style: ElevatedButton.styleFrom(backgroundColor:_darkMode ? Colors.grey[700] : Colors.lightBlue[100],foregroundColor: _darkMode ? Colors.blue : Colors.blue),
-                  onPressed: () => _functions.addNewClientDialog(), // Removed isVisit parameter
+                  onPressed: () => _functions!.addNewClientDialog(), // Removed isVisit parameter
                 ),
                 // const SizedBox(width: 8),
                 // ElevatedButton.icon(
@@ -360,7 +368,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               // --- VISTA DE BALANCE ---
               // Placeholder for BalanceDashboardWidget
               Expanded(
-                child: BalanceDashboardWidget(functions: _functions, darkMode: _darkMode),
+                child: BalanceDashboardWidget(functions: _functions!, darkMode: _darkMode),
               ),
             ] else if (_showStoreView) ...[
               // --- VISTA DE TIENDA ---
@@ -378,7 +386,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
               ),
             ] else ...[
               // --- VISTA DE CLIENTES (POR DEFECTO) ---
-              ClientStatsView(darkMode: _darkMode, clients: _functions.clients, calculateRemainingDays: _calculateRemainingDays),
+              ClientStatsView(darkMode: _darkMode, clients: _functions!.clients, calculateRemainingDays: _calculateRemainingDays),
               const SizedBox(height: 20),
               custom.SearchBar(
                 searchController: _searchController,
@@ -401,13 +409,13 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 child: ClientTable(
                   mode: _darkMode,
                   clients: _filteredClients,
-                onEdit: _functions.editClientDialog,
-                onRenew: (client) => _functions.renewClientDialog(client, context),
+                onEdit: _functions!.editClientDialog,
+                onRenew: (client) => _functions!.renewClientDialog(client, context),
                 onDelete: (client) async {
-                  await _functions.deleteClient(client);
+                  await _functions!.deleteClient(client);
                 },
                 onRegisterVisit: (client) async {
-                  await _functions.registerClientVisit(client);
+                  await _functions!.registerClientVisit(client);
                 },
               ),
             ),
@@ -440,11 +448,11 @@ class GymManagementScreenState extends State<GymManagementScreen> {
             // Acción para la vista de Clientes: Navegar a SettingsScreen
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => SettingsScreen(functions: _functions)),
+              MaterialPageRoute(builder: (context) => SettingsScreen(functions: _functions!)),
             ).then((_) {
               if (mounted) { // Rebuild to reflect potential changes in gymName, logo, or darkMode
                 setState(() {
-                   _darkMode = _functions.darkMode; // ensure darkMode is synced back
+                   _darkMode = _functions!.darkMode; // ensure darkMode is synced back
                 });
               }
             });
