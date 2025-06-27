@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart'; // Import fl_chart
 import 'package:gym_punto_venta/functions/funtions.dart'; // Assuming GymManagementFunctions is here
 import 'package:intl/intl.dart'; // For date formatting
+import 'package:gym_punto_venta/database/database_helper.dart' show TimePeriod; // Ensure this import is present
 
-// Enum for time period selection
-enum TimePeriod { lastMonth, last6Months, lastYear }
+// Removed local TimePeriod enum definition
 
 class BalanceDashboardWidget extends StatefulWidget {
   final GymManagementFunctions functions;
