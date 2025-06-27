@@ -7,7 +7,9 @@ import 'package:gym_punto_venta/widgets/clients_stas_view.dart';
 import 'package:gym_punto_venta/widgets/search_bar.dart' as custom;
 // import 'package:gym_punto_venta/widgets/settins_model.dart'; // Removed
 import 'package:gym_punto_venta/screens/settings_screen.dart'; // Added
-import 'package:gym_punto_venta/screens/product_registration_screen.dart'; // Added for product registration
+// import 'package:gym_punto_venta/screens/product_registration_screen.dart'; // Replaced by AddProductDialog
+import 'package:gym_punto_venta/dialogs/add_product_dialog.dart'; // Added for AddProductDialog
+import 'package:gym_punto_venta/dialogs/sell_product_dialog.dart'; // Added for SellProductDialog
 import 'package:gym_punto_venta/widgets/product_list.dart'; // Added for ProductList widget
 import 'package:gym_punto_venta/widgets/sales_summary.dart'; // Added for SalesSummary widget
 import 'package:gym_punto_venta/dialogs/edit_stock_dialog.dart'; // Added for EditStockDialog
@@ -128,29 +130,52 @@ class GymManagementScreenState extends State<GymManagementScreen> {
     }
   }
 
-  // Updated to use GymManagementFunctions
-  // Updated to use GymManagementFunctions new recordSale method
-  Future<void> _sellProduct(Product productToSell) async {
+  // Nueva función para manejar la confirmación de la venta desde el diálogo
+  Future<void> _confirmSale(Product product, int quantity) async {
     if (mounted) {
-      // Find the most up-to-date product information from the local list
-      final currentProductInList = _products.firstWhere((p) => p.id == productToSell.id, orElse: () => productToSell);
+      final currentProductInList = _products.firstWhere((p) => p.id == product.id, orElse: () => product);
 
-      if (currentProductInList.stock > 0) {
-        await _functions.recordSale(currentProductInList, 1);
-        // The recordSale method now handles stock updates and UI refresh via callback.
-        // It also shows its own SnackBar for errors like insufficient stock.
-        // We can show a success SnackBar here if recordSale doesn't, or rely on its internal messages.
-        // For now, let's assume recordSale handles success feedback or we add it there.
-        // If recordSale throws an error for insufficient stock, it's caught there.
-         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Venta de 1 unidad de ${productToSell.name} procesada.')),
+      if (currentProductInList.stock >= quantity) {
+        await _functions.recordSale(currentProductInList, quantity);
+        // recordSale ya actualiza el stock y refresca la UI via callback
+        // y debería manejar sus propios SnackBars de éxito/error.
+        // Si queremos un SnackBar específico aquí:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Venta de $quantity unidad(es) de ${product.name} procesada.')),
         );
       } else {
+        // Esta validación también está en el diálogo, pero es bueno tenerla aquí como respaldo.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${productToSell.name} está sin stock.')),
+          SnackBar(content: Text('Stock insuficiente para ${product.name}. Venta no procesada.')),
         );
       }
     }
+  }
+
+  // Modificado para mostrar SellProductDialog
+  Future<void> _sellProduct(Product productToSell) async {
+    if (!mounted) return;
+
+    // Asegurarse de tener la información más actualizada del producto desde la lista local
+    final currentProductInList = _products.firstWhere((p) => p.id == productToSell.id, orElse: () => productToSell);
+
+    if (currentProductInList.stock <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${currentProductInList.name} está sin stock.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return SellProductDialog(
+          product: currentProductInList, // Usar el producto actualizado
+          darkMode: _darkMode,
+          onConfirmSale: _confirmSale,
+        );
+      },
+    );
   }
 
   // This method is now for direct stock adjustments (e.g., from EditStockDialog)
@@ -363,15 +388,15 @@ class GymManagementScreenState extends State<GymManagementScreen> {
         tooltip: _showStoreView ? 'Agregar Producto' : 'Configuración',
         onPressed: () {
           if (_showStoreView) {
-            // Acción para la vista de Tienda: Navegar a ProductRegistrationScreen
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProductRegistrationScreen(
+            // Acción para la vista de Tienda: Mostrar AddProductDialog
+            showDialog(
+              context: context,
+              builder: (BuildContext dialogContext) {
+                return AddProductDialog(
                   darkMode: _darkMode,
                   onProductSaved: _addProduct,
-                ),
-              ),
+                );
+              },
             );
           } else {
             // Acción para la vista de Clientes: Navegar a SettingsScreen
