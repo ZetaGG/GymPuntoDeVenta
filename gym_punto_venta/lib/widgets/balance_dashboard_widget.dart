@@ -275,13 +275,13 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
                           });
                         }
                       },
-                      selectedColor: Theme.of(context).primaryColor,
+                      selectedColor: Colors.grey[600],
                       labelStyle: TextStyle(
                         color: _selectedPeriod == period
-                            ? (widget.darkMode ? Colors.black : Colors.white)
+                            ? (widget.darkMode ? Colors.white : Colors.white)
                             : textColor,
                       ),
-                      backgroundColor: widget.darkMode ? Colors.grey[700] : Colors.grey[300],
+                      backgroundColor: widget.darkMode ? Colors.grey : Colors.grey[300],
                     ),
                   );
                 }).toList(),
@@ -538,7 +538,7 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
           LineChartBarData(
             spots: _salesData,
             isCurved: true,
-            color: Theme.of(context).primaryColor,
+            color: Colors.blue,
             barWidth: 2,
             isStrokeCapRound: true,
             dotData: const FlDotData(show: false),
@@ -546,8 +546,8 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  Theme.of(context).primaryColor.withOpacity(0.3),
-                  Theme.of(context).primaryColor.withOpacity(0.0)
+                  Colors.blue.withOpacity(0.3),
+                  Colors.blue.withOpacity(0.0)
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
