@@ -133,6 +133,15 @@ class GymManagementFunctions {
     }
   }
 
+  Future<List<String>> getAvailableCategories() async {
+    try {
+      return await dbHelper.getDistinctCategories();
+    } catch (e) {
+      print('Error getting available categories: $e');
+      return []; // Return empty list on error
+    }
+  }
+
   Future<void> loadGymData() async {
     await migrateOldDataToSqliteIfNeeded();
 

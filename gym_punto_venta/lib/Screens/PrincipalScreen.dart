@@ -35,16 +35,19 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   // bool _showBalanceView = false; // Eliminado
   bool _darkMode = false;
   List<Product> _products = []; // Lista para almacenar productos en memoria
+  List<String> _productCategories = []; // Lista para almacenar categorías de productos
   bool _showStoreView = false; // Estado para alternar entre vista de Clientes y Tienda
   bool _showBalanceDashboard = false; // Estado para alternar a la vista de Balance
 
   late GymManagementFunctions _functions;
+  bool _isLoadingCategories = true;
   // Key for Scaffold to show SnackBars from anywhere if needed, or pass context.
   // final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
     super.initState();
+    _loadProductCategories(); // Cargar categorías al iniciar
     _functions = GymManagementFunctions(
       context: context,
       darkMode: _darkMode, // Pass initial, it will update from DB
@@ -81,6 +84,31 @@ class GymManagementScreenState extends State<GymManagementScreen> {
       },
     );
     // loadGymData (which also calls loadProducts) is called in GymManagementFunctions constructor.
+  }
+
+  Future<void> _loadProductCategories() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingCategories = true;
+      });
+    }
+    // Asegurarse que _functions está inicializada.
+    // Esto podría requerir esperar a que initState de _functions complete si getAvailableCategories depende de ello.
+    // Por ahora, asumimos que _functions está lista o que getAvailableCategories puede ser llamada.
+    // Una mejor solución podría ser hacer que _functions.loadGymData devuelva un Future y esperarlo.
+    // O que _functions tenga un callback para cuando esté completamente inicializado.
+    // Por simplicidad, llamaremos directamente.
+    if (mounted && _functions != null) { // Check if _functions is initialized
+        final categories = await _functions.getAvailableCategories();
+        if (mounted) {
+            setState(() {
+                _productCategories = categories;
+                _isLoadingCategories = false;
+            });
+        }
+    } else if (mounted) { // Si _functions no está lista, reintentar después de un delay.
+        Future.delayed(const Duration(milliseconds: 100), _loadProductCategories);
+    }
   }
 
   // _loadProducts is now handled by GymManagementFunctions and its callback
@@ -124,9 +152,13 @@ class GymManagementScreenState extends State<GymManagementScreen> {
   Future<void> _addProduct(Product product) async {
     if (mounted) {
       await _functions.addProduct(product); // This will also trigger the callback to update _products
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${product.name} agregado a la lista de productos.')),
-      );
+      // After adding a product, reload categories in case a new one was added
+      await _loadProductCategories();
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${product.name} agregado a la lista de productos.')),
+        );
+      }
     }
   }
 
@@ -386,8 +418,13 @@ class GymManagementScreenState extends State<GymManagementScreen> {
         backgroundColor: _darkMode ? Colors.grey[700] : (_showStoreView ? Colors.teal : Colors.blue),
         foregroundColor: Colors.white,
         tooltip: _showStoreView ? 'Agregar Producto' : 'Configuración',
-        onPressed: () {
+        onPressed: () async { // Hacer async para poder usar await dentro si es necesario
           if (_showStoreView) {
+            // Asegurarse de que las categorías estén cargadas antes de mostrar el diálogo
+            if (_isLoadingCategories) {
+              await _loadProductCategories(); // Esperar a que se carguen si aún no lo están
+            }
+            if (!mounted) return; // Verificar si el widget sigue montado después de operaciones asíncronas
             // Acción para la vista de Tienda: Mostrar AddProductDialog
             showDialog(
               context: context,
@@ -395,6 +432,7 @@ class GymManagementScreenState extends State<GymManagementScreen> {
                 return AddProductDialog(
                   darkMode: _darkMode,
                   onProductSaved: _addProduct,
+                  availableCategories: _productCategories, // Pasar las categorías cargadas
                 );
               },
             );
