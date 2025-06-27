@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart'; // Import fl_chart
 import 'package:gym_punto_venta/functions/funtions.dart'; // Assuming GymManagementFunctions is here
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:gym_punto_venta/database/database_helper.dart' show TimePeriod; // Ensure this import is present
+import 'dart:math' show max; // Import max function
 
 // Removed local TimePeriod enum definition
 
@@ -468,10 +469,9 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
                                 ),
                               ),
                             ),
-                          ],
-                          lineTouchData: LineTouchData( // Basic tooltip
+                          ],                          lineTouchData: LineTouchData( // Basic tooltip
                             touchTooltipData: LineTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
+                              getTooltipColor: (touchedSpot) => widget.darkMode ? Colors.blueGrey : Colors.white,
                               getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                                 return touchedBarSpots.map((barSpot) {
                                   final flSpot = barSpot;
@@ -571,12 +571,9 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
                         BarChartData(
                           alignment: BarChartAlignment.spaceAround,
                           maxY: _productSalesData.isEmpty ? 10 : _productSalesData.map((group) => group.barRods.map((rod) => rod.toY).reduce(max)).reduce(max) * 1.2, // Calculate max Y
-                          minY: 0,
-                          barTouchData: BarTouchData(
+                          minY: 0,                          barTouchData: BarTouchData(
                             touchTooltipData: BarTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
-                              getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                String weekDay;
+                              getTooltipColor: (group) => widget.darkMode ? Colors.blueGrey : Colors.white,                              getTooltipItem: (group, groupIndex, rod, rodIndex) {
                                 // Assuming bottomTitleWidgets can be adapted or a similar one created for product chart
                                 // For now, just show groupIndex or find a way to get 'time_group'
                                 // weekDay = 'Day ${group.x.toInt() + 1}';
@@ -614,7 +611,7 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
                                 showTitles: true,
                                 reservedSize: 40,
                                 getTitlesWidget: (value, meta) {
-                                   return Text(NumberFormat.compact().format(value), style: TextStyle(fontSize: 10, color: textColor), textAlign: TextAlign.left);
+                                return Text(NumberFormat.compact().format(value), style: TextStyle(fontSize: 10, color: textColor), textAlign: TextAlign.left);
                                 },
                               ),
                             ),
@@ -715,10 +712,9 @@ class _BalanceDashboardWidgetState extends State<BalanceDashboardWidget> {
                                 ),
                               ),
                             ),
-                          ],
-                          lineTouchData: LineTouchData(
+                          ],                          lineTouchData: LineTouchData(
                             touchTooltipData: LineTouchTooltipData(
-                              tooltipBgColor: widget.darkMode ? Colors.blueGrey : Colors.white,
+                              getTooltipColor: (touchedSpot) => widget.darkMode ? Colors.blueGrey : Colors.white,
                               getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                                 return touchedBarSpots.map((barSpot) {
                                   return LineTooltipItem(

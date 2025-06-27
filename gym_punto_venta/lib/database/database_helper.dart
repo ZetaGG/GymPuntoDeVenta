@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Explicit FFI import
+import 'package:flutter/material.dart'; // Added import for DateTimeRange
 import '../models/clients.dart'; // Added import for Client model
 import '../models/product.dart'; // Added import for Product model
 
