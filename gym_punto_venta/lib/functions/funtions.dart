@@ -854,4 +854,90 @@ void renewClientDialog(Client client, BuildContext mainContext) {
       };
     }
   }
+
+  // --- Chart Data Fetching Methods ---
+
+  Future<Map<String, double>> getFinancialSummaryForDateRange(DateTimeRange dateRange) async {
+    return await dbHelper.getFinancialSummaryForDateRange(dateRange);
+  }
+
+  // Placeholder for TimePeriod enum, assuming it's accessible.
+  // If not, it needs to be defined or imported.
+  // enum TimePeriod { lastMonth, last6Months, lastYear }
+
+  Future<List<dynamic>> getSalesDataForChart(DateTimeRange dateRange, dynamic period) async {
+    // TODO: Convert 'period' to the actual TimePeriod enum if not already
+    // This method would call dbHelper.getAggregatedSalesOverTime
+    // and dbHelper.getAggregatedProductSalesOverTime, then combine and process them.
+    // For now, returning raw data from one source as a placeholder.
+    // The actual implementation will transform this into List<FlSpot> or similar.
+
+    // Example:
+    // final membershipSales = await dbHelper.getAggregatedSalesOverTime(dateRange, period);
+    // final productSales = await dbHelper.getAggregatedProductSalesOverTime(dateRange, period);
+    // ... combine and process into chart data format ...
+    // return processedChartData;
+
+    // Placeholder:
+    final membershipSales = await dbHelper.getAggregatedSalesOverTime(dateRange, period);
+    final productSales = await dbHelper.getAggregatedProductSalesOverTime(dateRange, period);
+
+    // Combine membershipSales and productSales.
+    // This is a simplified combination logic. A more robust approach would align dates.
+    // For now, it just concatenates them or merges if time_group matches.
+    // The actual processing to FlSpot with combined values will happen in the widget.
+    Map<String, double> combinedSales = {};
+
+    for (var sale in membershipSales) {
+      String timeGroup = sale['time_group'];
+      double amount = (sale['total_sales'] as num?)?.toDouble() ?? 0.0;
+      combinedSales.update(timeGroup, (value) => value + amount, ifAbsent: () => amount);
+    }
+
+    for (var sale in productSales) {
+      String timeGroup = sale['time_group'];
+      double amount = (sale['total_product_sales'] as num?)?.toDouble() ?? 0.0;
+      combinedSales.update(timeGroup, (value) => value + amount, ifAbsent: () => amount);
+    }
+
+    List<Map<String, dynamic>> processedCombinedSales = combinedSales.entries.map((e) {
+      return {'time_group': e.key, 'total_sales': e.value};
+    }).toList();
+
+    // Sort by time_group to ensure chronological order for line charts
+    processedCombinedSales.sort((a, b) => a['time_group'].compareTo(b['time_group']));
+
+    print("Processed Combined Sales Data for Chart: $processedCombinedSales");
+    return processedCombinedSales; // This will need to be processed into List<FlSpot> in the widget
+  }
+
+  Future<List<dynamic>> getCustomerDistributionForChart(DateTimeRange dateRange) async {
+    // This method would call dbHelper.getCustomerCountsByMembershipType
+    // and process the result into List<PieChartSectionData>.
+    final rawCustomerData = await dbHelper.getCustomerCountsByMembershipType(dateRange);
+    print("Raw Customer Data for Chart: $rawCustomerData");
+    // This needs proper processing into List<PieChartSectionData>.
+    return rawCustomerData;
+  }
+
+  Future<List<dynamic>> getProductSalesDataForChart(DateTimeRange dateRange, dynamic period) async {
+    // This method would call dbHelper.getAggregatedProductSalesOverTime
+    // and process it into List<BarChartGroupData> or similar.
+    final rawProductSales = await dbHelper.getAggregatedProductSalesOverTime(dateRange, period);
+    print("Raw Product Sales Data for Chart: $rawProductSales");
+    // This needs proper processing.
+    return rawProductSales;
+  }
+
+  Future<List<dynamic>> getClientTrafficDataForChart(DateTimeRange dateRange, dynamic period) async {
+    // This method would call dbHelper.getClientActivityOverTime
+    // and process it into List<FlSpot> or similar.
+    final rawTrafficData = await dbHelper.getClientActivityOverTime(dateRange, period);
+    print("Raw Client Traffic Data for Chart: $rawTrafficData");
+    // This needs proper processing.
+    return rawTrafficData;
+  }
 }
+
+// Temporary TimePeriod enum for context if not imported/shared
+// enum TimePeriod { lastMonth, last6Months, lastYear }
